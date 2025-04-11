@@ -1,0 +1,737 @@
+-- خدمات اللعبة المطلوبة
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+-- إنشاء ScreenGui جديد داخل PlayerGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MohamedMenu"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+-- إنشاء الإطار الرئيسي للمنيو مع تأثيرات جمالية
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+-- البداية بحجم صغير للتأثير ثم الانتقال للحجم المطلوب (500 × 400 بكسل)
+MainFrame.Size = UDim2.new(0, 0, 0, 400)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+-- تغيير لون الخلفية إلى لون أعمق مع لمسة أنيقة
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 40)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+-- إضافة تأثير UIGradient لمنح تأثير لوني متدرج
+local mainGradient = Instance.new("UIGradient", MainFrame)
+mainGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 50)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 30))
+})
+mainGradient.Rotation = 90
+
+-- إضافة زوايا دائرية للإطار الرئيسي
+local mainCorner = Instance.new("UICorner", MainFrame)
+mainCorner.CornerRadius = UDim.new(0, 10)
+
+-- دالة مساعدة لإضافة UIStroke لأي عنصر (الزر مثلاً)
+local function addStroke(instance, thickness, color)
+    local stroke = Instance.new("UIStroke", instance)
+    stroke.Thickness = thickness
+    stroke.Color = color
+    stroke.Transparency = 0 -- تأكيد ظهور اللون
+    return stroke
+end
+
+-- زر إغلاق (X)
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0, 5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+CloseButton.Text = "X"
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.TextScaled = true
+CloseButton.TextColor3 = Color3.new(1, 1, 1)
+CloseButton.Parent = MainFrame
+local closeCorner = Instance.new("UICorner", CloseButton)
+closeCorner.CornerRadius = UDim.new(0, 10) -- تعديل حواف الزر
+addStroke(CloseButton, 2, Color3.fromRGB(100, 150, 255))
+CloseButton.MouseEnter:Connect(function()
+    TweenService:Create(CloseButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 0, 0)}):Play()
+end)
+CloseButton.MouseLeave:Connect(function()
+    TweenService:Create(CloseButton, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 80, 80)}):Play()
+end)
+CloseButton.MouseButton1Click:Connect(function()
+    MainFrame:Destroy()
+end)
+
+-- زر تقليل (–)
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
+MinimizeButton.Position = UDim2.new(1, -70, 0, 5)
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(120, 255, 120)
+MinimizeButton.Text = "–"
+MinimizeButton.Font = Enum.Font.SourceSansBold
+MinimizeButton.TextScaled = true
+MinimizeButton.TextColor3 = Color3.new(1, 1, 1)
+MinimizeButton.Parent = MainFrame
+local miniCorner = Instance.new("UICorner", MinimizeButton)
+miniCorner.CornerRadius = UDim.new(0, 10) -- تعديل حواف الزر
+addStroke(MinimizeButton, 2, Color3.fromRGB(100, 150, 255))
+
+-- منطقة التبويبات والمحتوى داخل المنيو
+local OptionsFrame = Instance.new("Frame")
+OptionsFrame.Name = "OptionsFrame"
+OptionsFrame.Size = UDim2.new(1, 0, 1, -50)
+OptionsFrame.Position = UDim2.new(0, 0, 0, 50)
+OptionsFrame.BackgroundTransparency = 1
+OptionsFrame.Parent = MainFrame
+
+local ContainerFrame = Instance.new("Frame")
+ContainerFrame.Name = "ContainerFrame"
+ContainerFrame.Size = UDim2.new(1, 0, 1, 0)
+ContainerFrame.Position = UDim2.new(0, 0, 0, 0)
+ContainerFrame.BackgroundTransparency = 1
+ContainerFrame.Parent = OptionsFrame
+
+-- إطار معلومات اللاعب (اسم وصورة)
+local PlayerInfoFrame = Instance.new("Frame")
+PlayerInfoFrame.Size = UDim2.new(1, 0, 0, 60)
+PlayerInfoFrame.Position = UDim2.new(0, 0, 1, -60)
+PlayerInfoFrame.BackgroundTransparency = 0.5
+PlayerInfoFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+PlayerInfoFrame.BorderSizePixel = 0
+PlayerInfoFrame.Parent = MainFrame
+addStroke(PlayerInfoFrame, 2, Color3.fromRGB(100, 150, 255))
+
+local AvatarImage = Instance.new("ImageLabel")
+AvatarImage.Size = UDim2.new(0, 60, 0, 60)
+AvatarImage.Position = UDim2.new(0, 5, 0, 0)
+AvatarImage.BackgroundTransparency = 1
+AvatarImage.Parent = PlayerInfoFrame
+
+local UserNameLabel = Instance.new("TextLabel")
+UserNameLabel.Size = UDim2.new(1, -70, 1, 0)
+UserNameLabel.Position = UDim2.new(0, 70, 0, 0)
+UserNameLabel.BackgroundTransparency = 1
+UserNameLabel.Text = Player.Name
+UserNameLabel.Font = Enum.Font.SourceSansBold
+UserNameLabel.TextScaled = true
+UserNameLabel.TextColor3 = Color3.new(1, 1, 1)
+UserNameLabel.Parent = PlayerInfoFrame
+
+local thumbType = Enum.ThumbnailType.HeadShot
+local thumbSize = Enum.ThumbnailSize.Size100x100
+local content, ready = Players:GetUserThumbnailAsync(Player.UserId, thumbType, thumbSize)
+AvatarImage.Image = content
+
+local isMinimized = false
+MinimizeButton.MouseButton1Click:Connect(function()
+    if not isMinimized then
+        -- عند التقليل: MainFrame يصغر إلى 500×50 بكسل، وتختفي كل من ContainerFrame ومعلومات اللاعب
+        MainFrame:TweenSize(UDim2.new(0, 500, 0, 50), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
+        ContainerFrame.Visible = false
+        PlayerInfoFrame.Visible = false
+        isMinimized = true
+    else
+        -- عند الرجوع للحجم الكامل: MainFrame يرجع إلى 500×400 بكسل وتظهر ContainerFrame ومعلومات اللاعب
+        MainFrame:TweenSize(UDim2.new(0, 500, 0, 400), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
+        ContainerFrame.Visible = true
+        PlayerInfoFrame.Visible = true
+        isMinimized = false
+    end
+end)
+
+-- فتح المنيو بتأثير الانتقال إلى الحجم الكامل
+local tweenInfo = TweenInfo.new(0.8, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local tween = TweenService:Create(MainFrame, tweenInfo, {Size = UDim2.new(0, 500, 0, 400), Position = UDim2.new(0.5, 0, 0.5, 0)})
+tween:Play()
+
+-- إنشاء عنوان المنيو مع تأثير كتابة تدريجي (Typewriter)
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Name = "TitleLabel"
+TitleLabel.Size = UDim2.new(1, -100, 0, 40)
+TitleLabel.Position = UDim2.new(0, 0, 0, 5)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = ""
+TitleLabel.Font = Enum.Font.SourceSansBold
+TitleLabel.TextScaled = true
+TitleLabel.TextColor3 = Color3.new(1, 1, 1)
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Center
+TitleLabel.Parent = MainFrame
+addStroke(TitleLabel, 1, Color3.fromRGB(100, 150, 255))
+
+-- إضافة UIGradient للنص لإضفاء لمسة حيوية
+local textGradient = Instance.new("UIGradient", TitleLabel)
+textGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 200, 0)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 80, 0))
+})
+textGradient.Rotation = 45
+
+tween.Completed:Connect(function()
+    local fullText = "منيو محمد TN"
+    TitleLabel.Text = ""
+    for i = 1, #fullText do
+        TitleLabel.Text = string.sub(fullText, 1, i)
+        wait(0.12)
+    end
+end)
+
+-- باقي السكربت الخاص بالتبويبات والمحتوى بدون تغيير على المميزات
+
+-- صندوق التبويبات (الجانب الأيسر)
+local TabsContainer = Instance.new("Frame")
+TabsContainer.Name = "TabsContainer"
+TabsContainer.Size = UDim2.new(0, 120, 1, 0)
+TabsContainer.Position = UDim2.new(0, 0, 0, 0)
+TabsContainer.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+TabsContainer.Parent = ContainerFrame
+local tabsGradient = Instance.new("UIGradient", TabsContainer)
+tabsGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(70, 70, 70)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(40, 40, 40))
+})
+tabsGradient.Rotation = 90
+
+-- صندوق المحتوى (الجانب الأيمن)
+local ContentContainer = Instance.new("Frame")
+ContentContainer.Name = "ContentContainer"
+ContentContainer.Size = UDim2.new(1, -120, 1, 0)
+ContentContainer.Position = UDim2.new(0, 120, 0, 0)
+ContentContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ContentContainer.Parent = ContainerFrame
+local contentGradient = Instance.new("UIGradient", ContentContainer)
+contentGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 50, 50)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(30, 30, 30))
+})
+contentGradient.Rotation = 90
+
+-- دالة لإنشاء زر تبويب
+local function createTabButton(name, posY, text)
+    local tabButton = Instance.new("TextButton")
+    tabButton.Name = name
+    tabButton.Size = UDim2.new(1, 0, 0, 35)
+    tabButton.Position = UDim2.new(0, 0, 0, posY)
+    tabButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    tabButton.Text = text
+    tabButton.Font = Enum.Font.SourceSansBold
+    tabButton.TextScaled = true
+    tabButton.TextColor3 = Color3.new(1, 1, 1)
+    tabButton.Parent = TabsContainer
+    local tabCorner = Instance.new("UICorner", tabButton)
+    tabCorner.CornerRadius = UDim.new(0, 10)
+    addStroke(tabButton, 2, Color3.fromRGB(100,150,255))
+    return tabButton
+end
+
+-- إنشاء أزرار التبويبات
+local Tab1Button = createTabButton("Tab1Button", 0, "أغراض تحكم")
+local Tab2Button = createTabButton("Tab2Button", 40, "سكربتات")
+local Tab3Button = createTabButton("Tab3Button", 80, "اللاعب")
+-- إضافة تبويب جديد باسم "الصفحة الرئيسية"
+local Tab4Button = createTabButton("Tab4Button", 120, "الصفحة الرئيسية")
+
+-- إنشاء إطارات المحتوى لكل تبويب داخل ContentContainer
+local function createScrollingFrame(name)
+    local frame = Instance.new("ScrollingFrame")
+    frame.Name = name
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.Position = UDim2.new(0, 0, 0, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BorderSizePixel = 0
+    frame.ScrollBarThickness = 8
+    frame.CanvasSize = UDim2.new(0, 300, 0, 400)
+    frame.Parent = ContentContainer
+    return frame
+end
+
+local Tab1Frame = createScrollingFrame("Tab1Frame")
+local Tab2Frame = createScrollingFrame("Tab2Frame")
+local Tab3Frame = createScrollingFrame("Tab3Frame")
+local Tab4Frame = createScrollingFrame("Tab4Frame") -- إطار تبويب "الصفحة الرئيسية"
+Tab2Frame.Visible = false -- إخفاء التبويب الثاني مبدئيًا
+Tab3Frame.Visible = false -- إخفاء التبويب الثالث مبدئيًا
+Tab4Frame.Visible = false -- إخفاء تبويب الصفحة الرئيسية مبدئيًا
+
+-- تبويب 1: أغراض التحكم (وظائف التحكم تبقى كما هي)
+local ControlSection = Instance.new("Frame")
+ControlSection.Size = UDim2.new(1, -20, 0, 310)
+ControlSection.Position = UDim2.new(0, 10, 0, 0)
+ControlSection.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ControlSection.BorderSizePixel = 0
+ControlSection.Parent = Tab1Frame
+addStroke(ControlSection, 2, Color3.fromRGB(100,150,255))
+
+local ControlTitle = Instance.new("TextLabel")
+ControlTitle.Size = UDim2.new(1, 0, 0, 20)
+ControlTitle.BackgroundTransparency = 1
+ControlTitle.Text = "التحكم"
+ControlTitle.Font = Enum.Font.SourceSansBold
+ControlTitle.TextScaled = true
+ControlTitle.TextColor3 = Color3.new(1, 1, 1)
+ControlTitle.Parent = ControlSection
+
+local function createControl(parent, labelText, posY, defaultValue, callback)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0, 80, 0, 30)
+    label.Position = UDim2.new(0, 5, 0, posY)
+    label.BackgroundTransparency = 1
+    label.Text = labelText
+    label.Font = Enum.Font.SourceSans
+    label.TextScaled = true
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.Parent = parent
+
+    local textBox = Instance.new("TextBox")
+    textBox.Size = UDim2.new(0, 80, 0, 30)
+    textBox.Position = UDim2.new(0, 90, 0, posY)
+    textBox.Text = tostring(defaultValue)
+    textBox.Font = Enum.Font.SourceSans
+    textBox.TextScaled = true
+    textBox.TextColor3 = Color3.new(0, 0, 0)
+    textBox.BackgroundColor3 = Color3.new(1, 1, 1)
+    textBox.Parent = parent
+
+    local setButton = Instance.new("TextButton")
+    setButton.Size = UDim2.new(0, 50, 0, 30)
+    setButton.Position = UDim2.new(0, 180, 0, posY)
+    setButton.Text = "تعيين"
+    setButton.Font = Enum.Font.SourceSans
+    setButton.TextScaled = true
+    setButton.TextColor3 = Color3.new(1, 1, 1)
+    setButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    setButton.Parent = parent
+    local setCorner = Instance.new("UICorner", setButton)
+    setCorner.CornerRadius = UDim.new(0, 10)
+    addStroke(setButton, 2, Color3.fromRGB(100,150,255))
+    setButton.MouseButton1Click:Connect(function()
+        local value = tonumber(textBox.Text)
+        if value then
+            callback(value)
+        else
+            warn("الرجاء إدخال رقم صالح لـ " .. labelText)
+        end
+    end)
+end
+
+createControl(ControlSection, "قفز عالي:", 30, 150, function(val)
+    if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+        Player.Character.Humanoid.JumpPower = val
+    end
+end)
+
+createControl(ControlSection, "سرعة:", 70, 50, function(val)
+    if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+        Player.Character.Humanoid.WalkSpeed = val
+    end
+end)
+
+local LagButton = Instance.new("TextButton")
+LagButton.Size = UDim2.new(1, -10, 0, 30)
+LagButton.Position = UDim2.new(0, 5, 0, 110)
+LagButton.Text = "إزالة لاق"
+LagButton.Font = Enum.Font.SourceSans
+LagButton.TextScaled = true
+LagButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+LagButton.TextColor3 = Color3.new(1, 1, 1)
+LagButton.Parent = ControlSection
+local lagCorner = Instance.new("UICorner", LagButton)
+lagCorner.CornerRadius = UDim.new(0, 10)
+addStroke(LagButton, 2, Color3.fromRGB(100,150,255))
+
+LagButton.MouseButton1Click:Connect(function()
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("ParticleEmitter") or obj:IsA("Sparkles") or obj:IsA("Fire") or obj:IsA("Smoke") then
+            obj.Enabled = false
+        end
+    end
+    warn("تم تفعيل إزالة اللاق")
+end)
+
+local wallClimbEnabled = false
+local WallClimbButton = Instance.new("TextButton")
+WallClimbButton.Size = UDim2.new(1, -10, 0, 30)
+WallClimbButton.Position = UDim2.new(0, 5, 0, 150)
+WallClimbButton.Text = "تسلق جدران: غيـر"
+WallClimbButton.Font = Enum.Font.SourceSans
+WallClimbButton.TextScaled = true
+WallClimbButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+WallClimbButton.TextColor3 = Color3.new(1, 1, 1)
+WallClimbButton.Parent = ControlSection
+local wallCorner = Instance.new("UICorner", WallClimbButton)
+wallCorner.CornerRadius = UDim.new(0, 10)
+addStroke(WallClimbButton, 2, Color3.fromRGB(100,150,255))
+
+WallClimbButton.MouseButton1Click:Connect(function()
+    wallClimbEnabled = not wallClimbEnabled
+    if wallClimbEnabled then
+        WallClimbButton.Text = "تسلق جدران: تـم"
+    else
+        WallClimbButton.Text = "تسلق جدران: غيـر"
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    if wallClimbEnabled and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+        local hrp = Player.Character.HumanoidRootPart
+        local rayOrigin = hrp.Position
+        local rayDirection = hrp.CFrame.LookVector * 3
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterDescendantsInstances = {Player.Character}
+        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+        local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+        if rayResult then
+            hrp.Velocity = Vector3.new(hrp.Velocity.X, 15, hrp.Velocity.Z)
+        end
+    end
+end)
+
+-- زر "اختفاء اضغط على e" لتفعيل Invisibility Toggle (وظيفته كما هي)
+local InvisButton = Instance.new("TextButton")
+InvisButton.Size = UDim2.new(1, -10, 0, 30)
+InvisButton.Position = UDim2.new(0, 5, 0, 190)
+InvisButton.Text = "اختفاء اضغط على e"
+InvisButton.Font = Enum.Font.SourceSans
+InvisButton.TextScaled = true
+InvisButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+InvisButton.TextColor3 = Color3.new(1, 1, 1)
+InvisButton.Parent = ControlSection
+local invisCorner = Instance.new("UICorner", InvisButton)
+invisCorner.CornerRadius = UDim.new(0, 10)
+addStroke(InvisButton, 2, Color3.fromRGB(100,150,255))
+
+local invisibilityLoaded = false
+InvisButton.MouseButton1Click:Connect(function()
+    if invisibilityLoaded then return end
+    invisibilityLoaded = true
+
+    -- Invisibility Toggle Script
+    local Keybind = "E" -- المفتاح لتفعيل/إيقاف الاختفاء
+    local Transparency = true -- تفعيل الشفافية
+    local NoClip = false -- تعطيل التصادم في الشخصية المزيفة
+    local UserInputService = game:GetService("UserInputService")
+    local SoundService = game:GetService("SoundService")
+    local StarterGui = game:GetService("StarterGui")
+    local RealCharacter = Player.Character or Player.CharacterAdded:Wait()
+    local IsInvisible = false
+    RealCharacter.Archivable = true
+    local FakeCharacter = RealCharacter:Clone()
+    local Part = Instance.new("Part", workspace)
+    Part.Anchored = true
+    Part.Size = Vector3.new(200, 1, 200)
+    Part.CFrame = CFrame.new(0, -500, 0) -- مكان آمن بعيد عن الخريطة
+    Part.CanCollide = true
+    FakeCharacter.Parent = workspace
+    FakeCharacter.HumanoidRootPart.CFrame = Part.CFrame * CFrame.new(0, 5, 0)
+    for i, v in pairs(RealCharacter:GetChildren()) do
+        if v:IsA("LocalScript") then
+            local clone = v:Clone()
+            clone.Disabled = true
+            clone.Parent = FakeCharacter
+        end
+    end
+    if Transparency then
+        for i, v in pairs(FakeCharacter:GetDescendants()) do
+            if v:IsA("BasePart") then
+                v.Transparency = 0.7
+            end
+        end
+    end
+    local CanInvis = true
+    local function RealCharacterDied()
+        CanInvis = false
+        RealCharacter:Destroy()
+        RealCharacter = Player.Character
+        CanInvis = true
+        IsInvisible = false
+        FakeCharacter:Destroy()
+        workspace.CurrentCamera.CameraSubject = RealCharacter.Humanoid
+        RealCharacter.Archivable = true
+        FakeCharacter = RealCharacter:Clone()
+        Part:Destroy()
+        Part = Instance.new("Part", workspace)
+        Part.Anchored = true
+        Part.Size = Vector3.new(200, 1, 200)
+        Part.CFrame = CFrame.new(9999, 9999, 9999)
+        Part.CanCollide = true
+        FakeCharacter.Parent = workspace
+        FakeCharacter.HumanoidRootPart.CFrame = Part.CFrame * CFrame.new(0, 5, 0)
+        for i, v in pairs(RealCharacter:GetChildren()) do
+            if v:IsA("LocalScript") then
+                local clone = v:Clone()
+                clone.Disabled = true
+                clone.Parent = FakeCharacter
+            end
+        end
+        if Transparency then
+            for i, v in pairs(FakeCharacter:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    v.Transparency = 0.7
+                end
+            end
+        end
+        RealCharacter.Humanoid.Died:Connect(function()
+            RealCharacter:Destroy()
+            FakeCharacter:Destroy()
+        end)
+        Player.CharacterAppearanceLoaded:Connect(RealCharacterDied)
+    end
+    RealCharacter.Humanoid.Died:Connect(function()
+        RealCharacter:Destroy()
+        FakeCharacter:Destroy()
+    end)
+    Player.CharacterAppearanceLoaded:Connect(RealCharacterDied)
+    local PseudoAnchor
+    RunService.RenderStepped:Connect(function()
+        if PseudoAnchor then
+            PseudoAnchor.CFrame = Part.CFrame * CFrame.new(0, 5, 0)
+        end
+        if NoClip then
+            FakeCharacter.Humanoid:ChangeState(11)
+        end
+    end)
+    PseudoAnchor = FakeCharacter.HumanoidRootPart
+    local function Invisible()
+        if not IsInvisible then
+            local StoredCF = RealCharacter.HumanoidRootPart.CFrame
+            RealCharacter.HumanoidRootPart.CFrame = FakeCharacter.HumanoidRootPart.CFrame
+            FakeCharacter.HumanoidRootPart.CFrame = StoredCF
+            RealCharacter.Humanoid:UnequipTools()
+            Player.Character = FakeCharacter
+            workspace.CurrentCamera.CameraSubject = FakeCharacter.Humanoid
+            PseudoAnchor = RealCharacter.HumanoidRootPart
+            for i, v in pairs(FakeCharacter:GetChildren()) do
+                if v:IsA("LocalScript") then
+                    v.Disabled = false
+                end
+            end
+            IsInvisible = true
+        else
+            local StoredCF = FakeCharacter.HumanoidRootPart.CFrame
+            FakeCharacter.HumanoidRootPart.CFrame = RealCharacter.HumanoidRootPart.CFrame
+            RealCharacter.HumanoidRootPart.CFrame = StoredCF
+            FakeCharacter.Humanoid:UnequipTools()
+            Player.Character = RealCharacter
+            workspace.CurrentCamera.CameraSubject = RealCharacter.Humanoid
+            PseudoAnchor = FakeCharacter.HumanoidRootPart
+            for i, v in pairs(FakeCharacter:GetChildren()) do
+                if v:IsA("LocalScript") then
+                    v.Disabled = true
+                end
+            end
+            IsInvisible = false
+        end
+    end
+    UserInputService.InputBegan:Connect(function(key, gamep)
+        if gamep then return end
+        if key.KeyCode.Name:lower() == Keybind:lower() and CanInvis and RealCharacter and FakeCharacter then
+            if RealCharacter:FindFirstChild("HumanoidRootPart") and FakeCharacter:FindFirstChild("HumanoidRootPart") then
+                Invisible()
+            end
+        end
+    end)
+    local Sound = Instance.new("Sound", SoundService)
+    Sound.SoundId = "rbxassetid://232127604"
+    Sound:Play()
+    StarterGui:SetCore("SendNotification", {
+        Title = "Invisible Toggle Loaded",
+        Text = "Press " .. Keybind .. " to change visibility.",
+        Duration = 20,
+        Button1 = "Okay."
+    })
+    -- تشغيل السكربت الثاني
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/GGH52lan/GGH52lan/main/keyboard.txt"))()
+end)
+
+-- إضافة زر جديد في قسم التحكم باسم (طيران)
+local FlightButton = Instance.new("TextButton")
+FlightButton.Size = UDim2.new(1, -10, 0, 30)
+FlightButton.Position = UDim2.new(0, 5, 0, 230)
+FlightButton.Text = "طيران"
+FlightButton.Font = Enum.Font.SourceSans
+FlightButton.TextScaled = true
+FlightButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+FlightButton.TextColor3 = Color3.new(1, 1, 1)
+FlightButton.Parent = ControlSection
+local flightCorner = Instance.new("UICorner", FlightButton)
+flightCorner.CornerRadius = UDim.new(0, 10)
+addStroke(FlightButton, 2, Color3.fromRGB(100,150,255))
+FlightButton.MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Mohakha1/-/refs/heads/main/Protected_7047204136562154%20(1).txt"))()
+end)
+
+-- زر كشف الاقفال في قسم التحكم
+local RevealLocksButton = Instance.new("TextButton")
+RevealLocksButton.Size = UDim2.new(1, -10, 0, 30)
+RevealLocksButton.Position = UDim2.new(0, 5, 0, 270)
+RevealLocksButton.Text = "كشف الاقفال"
+RevealLocksButton.Font = Enum.Font.SourceSans
+RevealLocksButton.TextScaled = true
+RevealLocksButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+RevealLocksButton.TextColor3 = Color3.new(1, 1, 1)
+RevealLocksButton.Parent = ControlSection
+local revealLocksCorner = Instance.new("UICorner", RevealLocksButton)
+revealLocksCorner.CornerRadius = UDim.new(0, 10)
+addStroke(RevealLocksButton, 2, Color3.fromRGB(100,150,255))
+
+RevealLocksButton.MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Mohakha1/-/refs/heads/main/Tor.txt"))()
+end)
+
+-- تبويب 2: سكربتات خارجية
+local ScriptsSection = Instance.new("Frame")
+ScriptsSection.Size = UDim2.new(1, -20, 0, 200)
+ScriptsSection.Position = UDim2.new(0, 10, 0, 0)
+ScriptsSection.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ScriptsSection.BorderSizePixel = 0
+ScriptsSection.Parent = Tab2Frame
+addStroke(ScriptsSection, 2, Color3.fromRGB(100,150,255))
+
+local ScriptsTitle = Instance.new("TextLabel")
+ScriptsTitle.Size = UDim2.new(1, 0, 0, 20)
+ScriptsTitle.BackgroundTransparency = 1
+ScriptsTitle.Text = "سكربتات"
+ScriptsTitle.Font = Enum.Font.SourceSansBold
+ScriptsTitle.TextScaled = true
+ScriptsTitle.TextColor3 = Color3.new(1, 1, 1)
+ScriptsTitle.Parent = ScriptsSection
+
+local function createScriptButton(parent, text, posY, url)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 30)
+    btn.Position = UDim2.new(0, 5, 0, posY)
+    btn.Text = text
+    btn.Font = Enum.Font.SourceSans
+    btn.TextScaled = true
+    btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Parent = parent
+    local btnCorner = Instance.new("UICorner", btn)
+    btnCorner.CornerRadius = UDim.new(0, 10)
+    addStroke(btn, 2, Color3.fromRGB(100,150,255))
+    btn.MouseButton1Click:Connect(function()
+        loadstring(game:HttpGet(url, true))()
+    end)
+end
+
+createScriptButton(ScriptsSection, "سكربت ساندر اكس", 30, "https://raw.githubusercontent.com/sXPiterXs1111/SanderXV2.65/main/sanderXNewV2.65.lua")
+createScriptButton(ScriptsSection, "سكربت ايس هيب", 70, "https://orbitsc.net/brook")
+createScriptButton(ScriptsSection, "سكربت Project", 110, "https://raw.githubusercontent.com/ProjectSunterium/Project-Sunterium/refs/heads/main/Project%20Sunterium")
+createScriptButton(ScriptsSection, "سكربت orbitsc", 150, "https://orbitsc.net/brook")
+createScriptButton(ScriptsSection, "سكربت داركون", 190, "https://raw.githubusercontent.com/TheDarkoneMarcillisePex/Other-Scripts/main/Brook%20Haven%20Gui")
+
+-- تبويب 3: محتوى تجريبي (اللاعب)
+local Tab3Section = Instance.new("Frame")
+Tab3Section.Size = UDim2.new(1, -20, 0, 200)
+Tab3Section.Position = UDim2.new(0, 10, 0, 0)
+Tab3Section.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+Tab3Section.BorderSizePixel = 0
+Tab3Section.Parent = Tab3Frame
+addStroke(Tab3Section, 2, Color3.fromRGB(100,150,255))
+
+local Tab3Title = Instance.new("TextLabel")
+Tab3Title.Size = UDim2.new(1, 0, 0, 20)
+Tab3Title.BackgroundTransparency = 1
+Tab3Title.Text = "اللاعب"
+Tab3Title.Font = Enum.Font.SourceSansBold
+Tab3Title.TextScaled = true
+Tab3Title.TextColor3 = Color3.new(1, 1, 1)
+Tab3Title.Parent = Tab3Section
+
+local ExampleLabel = Instance.new("TextLabel")
+ExampleLabel.Size = UDim2.new(1, -10, 0, 30)
+ExampleLabel.Position = UDim2.new(0, 5, 0, 30)
+ExampleLabel.Text = "هذا محتوى التبويب الخاص باللاعب"
+ExampleLabel.Font = Enum.Font.SourceSansBold
+ExampleLabel.TextScaled = true
+ExampleLabel.TextColor3 = Color3.new(1, 1, 1)
+ExampleLabel.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+ExampleLabel.Parent = Tab3Section
+addStroke(ExampleLabel, 2, Color3.fromRGB(100,150,255))
+
+local TeleportButton = Instance.new("TextButton")
+TeleportButton.Size = UDim2.new(1, -10, 0, 30)
+TeleportButton.Position = UDim2.new(0, 5, 0, 70)
+TeleportButton.Text = "تنقل"
+TeleportButton.Font = Enum.Font.SourceSans
+TeleportButton.TextScaled = true
+TeleportButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+TeleportButton.TextColor3 = Color3.new(1, 1, 1)
+TeleportButton.Parent = Tab3Section
+local teleCorner = Instance.new("UICorner", TeleportButton)
+teleCorner.CornerRadius = UDim.new(0, 10)
+addStroke(TeleportButton, 2, Color3.fromRGB(100,150,255))
+TeleportButton.MouseButton1Click:Connect(function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Mohakha1/-/refs/heads/main/Teleport.txt"))()
+end)
+
+-- تبويب 4: الصفحة الرئيسية
+local HomeSection = Instance.new("Frame")
+HomeSection.Size = UDim2.new(1, -20, 0, 200)
+HomeSection.Position = UDim2.new(0, 10, 0, 0)
+HomeSection.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+HomeSection.BorderSizePixel = 0
+HomeSection.Parent = Tab4Frame
+addStroke(HomeSection, 2, Color3.fromRGB(100,150,255))
+
+local HomeTitle = Instance.new("TextLabel")
+HomeTitle.Size = UDim2.new(1, 0, 0, 20)
+HomeTitle.BackgroundTransparency = 1
+HomeTitle.Text = "الصفحة الرئيسية"
+HomeTitle.Font = Enum.Font.SourceSansBold
+HomeTitle.TextScaled = true
+HomeTitle.TextColor3 = Color3.new(1, 1, 1)
+HomeTitle.Parent = HomeSection
+
+-- تبديل التبويبات عند الضغط
+Tab1Button.MouseButton1Click:Connect(function()
+    Tab1Frame.Visible = true
+    Tab2Frame.Visible = false
+    Tab3Frame.Visible = false
+    Tab4Frame.Visible = false
+    Tab1Button.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    Tab2Button.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    Tab3Button.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    Tab4Button.BackgroundColor3 = Color3.fromRGB(50,50,50)
+end)
+
+Tab2Button.MouseButton1Click:Connect(function()
+    Tab1Frame.Visible = false
+    Tab2Frame.Visible = true
+    Tab3Frame.Visible = false
+    Tab4Frame.Visible = false
+    Tab2Button.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    Tab1Button.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    Tab3Button.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    Tab4Button.BackgroundColor3 = Color3.fromRGB(50,50,50)
+end)
+
+Tab3Button.MouseButton1Click:Connect(function()
+    Tab1Frame.Visible = false
+    Tab2Frame.Visible = false
+    Tab3Frame.Visible = true
+    Tab4Frame.Visible = false
+    Tab3Button.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    Tab1Button.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    Tab2Button.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    Tab4Button.BackgroundColor3 = Color3.fromRGB(50,50,50)
+end)
+
+Tab4Button.MouseButton1Click:Connect(function()
+    Tab1Frame.Visible = false
+    Tab2Frame.Visible = false
+    Tab3Frame.Visible = false
+    Tab4Frame.Visible = true
+    Tab4Button.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    Tab1Button.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    Tab2Button.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    Tab3Button.BackgroundColor3 = Color3.fromRGB(50,50,50)
+end)
