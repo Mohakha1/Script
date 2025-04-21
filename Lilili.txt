@@ -7,7 +7,7 @@ local Players           = game:GetService("Players")
 local RunService        = game:GetService("RunService")
 local localPlayer       = Players.LocalPlayer
 
--- قائمة الألوان للتدرّج والوميض والموجة
+-- قائمة الألوان للتدرّج والوميض والموجة (للقسمين: الاسم والبايو)
 local colors = {
     Color3.fromRGB(255,   0,   0),   -- أحمر
     Color3.fromRGB(0,   255,   0),   -- أخضر
@@ -29,7 +29,7 @@ local colors = {
     Color3.fromRGB(0,   128, 128),   -- تركواز غامق
 }
 
--- دمج لونين (للتدرّج)
+-- دالة دمج لونين (للتدرّج)
 local function blendColors(c1, c2, alpha)
     return Color3.new(
         c1.R * (1 - alpha) + c2.R * alpha,
@@ -39,8 +39,9 @@ local function blendColors(c1, c2, alpha)
 end
 
 -----------------------------------------------------------
--- تأثيرات "الاسم" (تُستخدم في تبويب "الألوان > الاسم")
+-- تأثيرات "الاسم" (في تبويب "الألوان > الاسم")
 -----------------------------------------------------------
+
 local gradientRunning = false
 local function startGradient()
     if gradientRunning then return end
@@ -53,8 +54,7 @@ local function startGradient()
             for i = 0, 1, 0.05 do
                 if not gradientRunning then return end
                 local blended = blendColors(c1, c2, i)
-                ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
-                    :FireServer("PickingRPNameColor", blended)
+                ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPNameColor", blended)
                 wait(0.25)
             end
             idx = idx + 1
@@ -74,8 +74,7 @@ local function startBlink()
     task.spawn(function()
         local idx = 1
         while blinkRunning do
-            ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
-                :FireServer("PickingRPNameColor", colors[idx])
+            ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPNameColor", colors[idx])
             idx = idx + 1
             if idx > #colors then idx = 1 end
             wait(1.2)
@@ -94,8 +93,7 @@ local function startWave()
         while waveRunning do
             for _, color in ipairs(colors) do
                 if not waveRunning then return end
-                ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
-                    :FireServer("PickingRPNameColor", color)
+                ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPNameColor", color)
                 wait(0.3)
             end
         end
@@ -112,7 +110,7 @@ OrionLib:MakeNotification({
 })
 
 -----------------------------------------------------------
--- تأثيرات "البايو" (التعديلات المطلوبة لتأثيرات البايو)
+-- تأثيرات "البايو"
 -----------------------------------------------------------
 local gradientBioRunning = false
 local function startGradientBio()
@@ -126,8 +124,7 @@ local function startGradientBio()
             for i = 0, 1, 0.05 do
                 if not gradientBioRunning then return end
                 local blended = blendColors(c1, c2, i)
-                ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
-                    :FireServer("PickingRPBioColor", blended)
+                ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPBioColor", blended)
                 wait(0.25)
             end
             idx = idx + 1
@@ -147,8 +144,7 @@ local function startBlinkBio()
     task.spawn(function()
         local idx = 1
         while blinkBioRunning do
-            ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
-                :FireServer("PickingRPBioColor", colors[idx])
+            ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPBioColor", colors[idx])
             idx = idx + 1
             if idx > #colors then idx = 1 end
             wait(1.2)
@@ -167,8 +163,7 @@ local function startWaveBio()
         while waveBioRunning do
             for _, color in ipairs(colors) do
                 if not waveBioRunning then return end
-                ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
-                    :FireServer("PickingRPBioColor", color)
+                ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPBioColor", color)
                 wait(0.3)
             end
         end
@@ -209,7 +204,7 @@ local function updateJumpPower()
 end
 local function updateWalkSpeed()
     local h = localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid")
-    if h then h.WalkSpeed  = enableSpeed and walkSpeed or 16 end
+    if h then h.WalkSpeed = enableSpeed and walkSpeed or 16 end
 end
 
 tabPlayer:AddTextbox({
@@ -336,7 +331,10 @@ local function startFollow(name)
 end
 local function bang1(name)
     local target = Players:FindFirstChild(name)
-    if not target then OrionLib:MakeNotification({Name="خطأ",Content="لاعب غير موجود",Time=5}) return end
+    if not target then 
+        OrionLib:MakeNotification({Name="خطأ", Content="لاعب غير موجود", Time=5})
+        return 
+    end
     local targetChar = target.Character or target.CharacterAdded:Wait()
     local targetHead = targetChar:WaitForChild("Head")
     local myChar     = localPlayer.Character or localPlayer.CharacterAdded:Wait()
@@ -352,25 +350,25 @@ local function bang1(name)
     local myAttach   = Instance.new("Attachment", hrp)
     local headAttach = Instance.new("Attachment", targetHead)
     local alignPos   = Instance.new("AlignPosition", hrp)
-    alignPos.Attachment0   = myAttach
-    alignPos.Attachment1   = headAttach
+    alignPos.Attachment0    = myAttach
+    alignPos.Attachment1    = headAttach
     alignPos.RigidityEnabled = true
     alignPos.Responsiveness  = 200
     alignPos.MaxForce        = math.huge
     local alignOri   = Instance.new("AlignOrientation", hrp)
-    alignOri.Attachment0   = myAttach
-    alignOri.Attachment1   = headAttach
+    alignOri.Attachment0    = myAttach
+    alignOri.Attachment1    = headAttach
     alignOri.RigidityEnabled = true
     alignOri.Responsiveness  = 200
     alignOri.MaxTorque       = math.huge
     local t = 0
     if sitHeadConn then sitHeadConn:Disconnect() end
     sitHeadConn = RunService.RenderStepped:Connect(function(dt)
-        t += dt
+        t = t + dt
         local sway = math.sin(t * 20) * 0.3
         myAttach.Position = Vector3.new(0, 2.1, -0.5 + sway)
     end)
-    OrionLib:MakeNotification({Name="تم التفعيل",Content="bang1 مفعل على: "..name,Time=5})
+    OrionLib:MakeNotification({Name="تم التفعيل", Content="bang1 مفعل على: " .. name, Time=5})
 end
 
 dropdownInst = tabTarget:AddDropdown({
@@ -384,12 +382,15 @@ tabTarget:AddToggle({
     Default = false,
     Callback= function(state)
         if state then
-            if not selectedName then OrionLib:MakeNotification({Name="خطأ",Content="اختر لاعب أولاً!",Time=5}) return end
+            if not selectedName then 
+                OrionLib:MakeNotification({Name="خطأ", Content="اختر لاعب أولاً!", Time=5})
+                return 
+            end
             startFollow(selectedName)
-            OrionLib:MakeNotification({Name="تم التفعيل",Content="تتبع مفعل",Time=5})
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="تتبع مفعل", Time=5})
         else
             if followConn then followConn:Disconnect() end
-            OrionLib:MakeNotification({Name="تم الإيقاف",Content="تتبع مُعطّل",Time=5})
+            OrionLib:MakeNotification({Name="تم الإيقاف", Content="تتبع مُعطّل", Time=5})
         end
     end,
 })
@@ -398,7 +399,10 @@ tabTarget:AddToggle({
     Default = false,
     Callback= function(state)
         if state then
-            if not selectedName then OrionLib:MakeNotification({Name="خطأ",Content="اختر لاعب أولاً!",Time=5}) return end
+            if not selectedName then 
+                OrionLib:MakeNotification({Name="خطأ", Content="اختر لاعب أولاً!", Time=5})
+                return 
+            end
             bang1(selectedName)
         else
             if sitHeadConn then sitHeadConn:Disconnect() end
@@ -415,7 +419,7 @@ tabTarget:AddToggle({
                     end
                 end
             end
-            OrionLib:MakeNotification({Name="تم الإيقاف",Content="bang1 مُعطّل",Time=5})
+            OrionLib:MakeNotification({Name="تم الإيقاف", Content="bang1 مُعطّل", Time=5})
         end
     end,
 })
@@ -441,6 +445,7 @@ tabItems:AddButton({
 -----------------------------------------------------------
 -- تبويب الألوان
 -----------------------------------------------------------
+-- قسم الاسم
 tabColors:AddSection({ Name = "الاسم" })
 tabColors:AddToggle({
     Name    = "تدرج لون الاسم",
@@ -450,7 +455,7 @@ tabColors:AddToggle({
             stopBlink()
             stopWave()
             startGradient()
-            OrionLib:MakeNotification({Name="تم التفعيل",Content="تدرج لون الاسم مفعل",Time=5})
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="تدرج لون الاسم مفعل", Time=5})
         else
             stopGradient()
         end
@@ -464,7 +469,7 @@ tabColors:AddToggle({
             stopGradient()
             stopWave()
             startBlink()
-            OrionLib:MakeNotification({Name="تم التفعيل",Content="وميض لون الاسم مفعل",Time=5})
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="وميض لون الاسم مفعل", Time=5})
         else
             stopBlink()
         end
@@ -478,12 +483,14 @@ tabColors:AddToggle({
             stopGradient()
             stopBlink()
             startWave()
-            OrionLib:MakeNotification({Name="تم التفعيل",Content="موجة لون الاسم مفعل",Time=5})
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="موجة لون الاسم مفعل", Time=5})
         else
             stopWave()
         end
     end,
 })
+
+-- قسم البايو
 tabColors:AddSection({ Name = "البايو" })
 tabColors:AddToggle({
     Name    = "تدرج لون البايو",
@@ -493,7 +500,7 @@ tabColors:AddToggle({
             stopBlinkBio()
             stopWaveBio()
             startGradientBio()
-            OrionLib:MakeNotification({Name="تم التفعيل",Content="تدرج لون البايو مفعل",Time=5})
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="تدرج لون البايو مفعل", Time=5})
         else
             stopGradientBio()
         end
@@ -507,7 +514,7 @@ tabColors:AddToggle({
             stopGradientBio()
             stopWaveBio()
             startBlinkBio()
-            OrionLib:MakeNotification({Name="تم التفعيل",Content="وميض لون البايو مفعل",Time=5})
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="وميض لون البايو مفعل", Time=5})
         else
             stopBlinkBio()
         end
@@ -521,20 +528,16 @@ tabColors:AddToggle({
             stopGradientBio()
             stopBlinkBio()
             startWaveBio()
-            OrionLib:MakeNotification({Name="تم التفعيل",Content="موجة لون البايو مفعل",Time=5})
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="موجة لون البايو مفعل", Time=5})
         else
             stopWaveBio()
         end
     end,
 })
 
------------------------------------------------------------
--- تبويب الألوان - قسم الافاتار
------------------------------------------------------------
+-- قسم الافاتار
 tabColors:AddSection({ Name = "الافتار" })
-
 local avatarColorRunning = false
-
 local function startAvatarColors()
     if avatarColorRunning then return end
     avatarColorRunning = true
@@ -557,50 +560,88 @@ local function startAvatarColors()
             "Mulberry", "Lavender", "Royal indigo", "Purple",
             "Navy blue", "Bright blue"
         }
-        
         while avatarColorRunning do
             for _, color in ipairs(avatarColors) do
                 if not avatarColorRunning then break end
                 Remote:FireServer(color)
-                wait(0,2) -- يمكنك تعديل الوقت هنا حسب رغبتك
+                wait(1) -- لتعديل سرعة التبديل غيّر العدد هنا (مثلاً 0.5 لتسريع أو 2 لتأخير)
             end
         end
     end)
 end
-
 local function stopAvatarColors()
     avatarColorRunning = false
 end
-
 tabColors:AddToggle({
     Name    = "تغيير لون الافاتار تلقائي",
     Default = false,
     Callback = function(state)
         if state then
             startAvatarColors()
-            OrionLib:MakeNotification({
-                Name    = "تم التفعيل",
-                Content = "تغيير لون الافاتار التلقائي مفعل",
-                Time    = 5,
-            })
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="تغيير لون الافاتار التلقائي مفعل", Time=5})
         else
             stopAvatarColors()
-            OrionLib:MakeNotification({
-                Name    = "تم الإيقاف",
-                Content = "تغيير لون الافاتار التلقائي معطل",
-                Time    = 5,
-            })
+            OrionLib:MakeNotification({Name="تم الإيقاف", Content="تغيير لون الافاتار التلقائي معطل", Time=5})
         end
     end,
 })
 
------------------------------------------------------------
--- تبويب الألوان - قسم السياره
------------------------------------------------------------
+-- قسم السياره (تمت الإضافة هنا)
 tabColors:AddSection({ Name = "السياره" })
------------------------------------------------------------
--- تبويب الألوان - قسم المنزل
------------------------------------------------------------
+
+local carColorRunning = false
+local function startCarColors()
+    if carColorRunning then return end
+    carColorRunning = true
+    task.spawn(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local Remote = ReplicatedStorage.RE:FindFirstChild("1Player1sCa1r")
+        local carColors = {}
+        for i = 1, 1000 do
+            local r = math.random(0, 255)
+            local g = math.random(0, 255)
+            local b = math.random(0, 255)
+            table.insert(carColors, Color3.fromRGB(r, g, b))
+        end
+        local function shuffle(tbl)
+            for i = #tbl, 2, -1 do
+                local j = math.random(1, i)
+                tbl[i], tbl[j] = tbl[j], tbl[i]
+            end
+        end
+        shuffle(carColors)
+        while carColorRunning do
+            for _, color in ipairs(carColors) do
+                if not carColorRunning then break end
+                local success, err = pcall(function()
+                    Remote:FireServer("PickingCarColor", color)
+                end)
+                if not success then
+                    warn("Error while sending color:", err)
+                end
+                wait(math.random(2, 6) / 10) -- عدل هذه القيمة لتحديد سرعة تبديل ألوان السيارة
+            end
+        end
+    end)
+end
+local function stopCarColors()
+    carColorRunning = false
+end
+tabColors:AddToggle({
+    Name    = "تغيير لون السيارة تلقائيًا",
+    Default = false,
+    Callback = function(state)
+        if state then
+            startCarColors()
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="تم تفعيل تغيير لون السيارة تلقائيًا", Time=5})
+        else
+            stopCarColors()
+            OrionLib:MakeNotification({Name="تم الإيقاف", Content="تم تعطيل تغيير لون السيارة تلقائيًا", Time=5})
+        end
+    end,
+})
+
+-- قسم المنزل (يمكنك إضافة وظائف مستقبلية هنا)
 tabColors:AddSection({ Name = "المنزل" })
 
 -----------------------------------------------------------
