@@ -562,7 +562,7 @@ local function startAvatarColors()
             for _, color in ipairs(avatarColors) do
                 if not avatarColorRunning then break end
                 Remote:FireServer(color)
-                wait(1) -- يمكنك تعديل الوقت هنا حسب رغبتك
+                wait(0,2) -- يمكنك تعديل الوقت هنا حسب رغبتك
             end
         end
     end)
