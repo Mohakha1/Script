@@ -41,7 +41,6 @@ end
 -----------------------------------------------------------
 -- تأثيرات "الاسم" (في تبويب "الألوان > الاسم")
 -----------------------------------------------------------
-
 local gradientRunning = false
 local function startGradient()
     if gradientRunning then return end
@@ -424,6 +423,77 @@ tabTarget:AddToggle({
     end,
 })
 
+-- زر "قتل بالباص" في تبويب الاستهداف
+local function busKill()
+    if not selectedName then
+        OrionLib:MakeNotification({Name="خطأ", Content="اختر لاعب أولاً!", Time=5})
+        return
+    end
+    local player = game.Players.LocalPlayer
+    local target = game.Players:FindFirstChild(selectedName)
+    if not target then 
+        OrionLib:MakeNotification({Name="خطأ", Content="لاعب غير موجود", Time=5})
+        return 
+    end
+    local localChar = player.Character or player.CharacterAdded:Wait()
+    local hrp = localChar:FindFirstChild("HumanoidRootPart")
+    if not hrp then 
+        OrionLib:MakeNotification({Name="خطأ", Content="لا يوجد HumanoidRootPart", Time=5})
+        return 
+    end
+
+    local originalCFrame = hrp.CFrame
+    local firstCFrame = CFrame.new(1039.02393, 78.6514969, -1034.72437,
+        -0.549868405, 0.0108198766, -0.835181236,
+        -8.43425005e-05, 0.999915361, 0.0130095575,
+        0.835251272, 0.00722398562, -0.54982096)
+    local secondCFrame = CFrame.new(1051.32434, 78.612854, -1038.99731,
+        0.82696569, 0.00431149732, -0.562235892,
+        0.00424380461, 0.999894261, 0.0139096817,
+        0.562236369, -0.0138888489, 0.826859951)
+    
+    hrp.CFrame = firstCFrame
+    task.wait(0.5)
+    
+    local remote = game:GetService("ReplicatedStorage"):FindFirstChild("RE"):FindFirstChild("1Ca1r")
+    if remote then
+        remote:FireServer("PickingCar", "SchoolBus")
+    end
+    
+    task.wait(1.5)
+    hrp.CFrame = secondCFrame
+    task.wait(0.2)
+    
+    local targetHRP = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+    if targetHRP then
+        local startTime = tick()
+        while tick() - startTime < 3 do
+            local angle = (tick() - startTime) * 20
+            local radius = 5
+            local offset = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+            hrp.CFrame = CFrame.new(targetHRP.Position + offset) * CFrame.Angles(0, math.rad(angle * 60), 0)
+            task.wait()
+        end
+    end
+    
+    hrp.CFrame = CFrame.new(hrp.Position.X, -100, hrp.Position.Z)
+    task.wait(0.05)
+    
+    local deleteArgs = { [1] = "DeleteAllVehicles" }
+    local deleteRemote = game:GetService("ReplicatedStorage").RE:FindFirstChild("1Ca1r")
+    if deleteRemote then
+        deleteRemote:FireServer(unpack(deleteArgs))
+    end
+    
+    task.wait(0.1)
+    hrp.CFrame = originalCFrame
+end
+
+tabTarget:AddButton({
+    Name = "قتل بالباص",
+    Callback = busKill,
+})
+
 -----------------------------------------------------------
 -- تبويب أغراض
 -----------------------------------------------------------
@@ -586,9 +656,8 @@ tabColors:AddToggle({
     end,
 })
 
--- قسم السياره (تمت الإضافة هنا)
+-- قسم السياره
 tabColors:AddSection({ Name = "السياره" })
-
 local carColorRunning = false
 local function startCarColors()
     if carColorRunning then return end
@@ -641,8 +710,65 @@ tabColors:AddToggle({
     end,
 })
 
--- قسم المنزل (يمكنك إضافة وظائف مستقبلية هنا)
+-- قسم المنزل
 tabColors:AddSection({ Name = "المنزل" })
+local houseColorRunning = false
+local function startHouseColors()
+    if houseColorRunning then return end
+    houseColorRunning = true
+    task.spawn(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local remoteHouse = ReplicatedStorage.RE:FindFirstChild("1Player1sHous1e")
+        local houseColors = {
+            Color3.fromRGB(255, 0, 0), Color3.fromRGB(0, 255, 0), Color3.fromRGB(0, 0, 255),
+            Color3.fromRGB(255, 255, 0), Color3.fromRGB(255, 0, 255), Color3.fromRGB(0, 255, 255),
+            Color3.fromRGB(128, 0, 0), Color3.fromRGB(0, 128, 0), Color3.fromRGB(0, 0, 128),
+            Color3.fromRGB(255, 165, 0), Color3.fromRGB(75, 0, 130), Color3.fromRGB(255, 192, 203),
+            Color3.fromRGB(139, 69, 19), Color3.fromRGB(173, 216, 230), Color3.fromRGB(0, 100, 0),
+            Color3.fromRGB(255, 105, 180), Color3.fromRGB(186, 85, 211), Color3.fromRGB(240, 230, 140),
+            Color3.fromRGB(100, 149, 237), Color3.fromRGB(123, 104, 238), Color3.fromRGB(255, 222, 173),
+            Color3.fromRGB(255, 250, 250), Color3.fromRGB(70, 130, 180), Color3.fromRGB(135, 206, 250),
+            Color3.fromRGB(250, 128, 114), Color3.fromRGB(210, 105, 30), Color3.fromRGB(60, 179, 113),
+            Color3.fromRGB(47, 79, 79), Color3.fromRGB(106, 90, 205), Color3.fromRGB(199, 21, 133),
+            Color3.fromRGB(255, 239, 213), Color3.fromRGB(152, 251, 152), Color3.fromRGB(255, 20, 147),
+            Color3.fromRGB(245, 222, 179), Color3.fromRGB(105, 105, 105), Color3.fromRGB(255, 228, 225),
+            Color3.fromRGB(255, 248, 220), Color3.fromRGB(219, 112, 147), Color3.fromRGB(216, 191, 216),
+            Color3.fromRGB(32, 178, 170), Color3.fromRGB(72, 61, 139), Color3.fromRGB(176, 196, 222),
+            Color3.fromRGB(245, 245, 245), Color3.fromRGB(255, 228, 181), Color3.fromRGB(255, 160, 122),
+            Color3.fromRGB(127, 255, 212), Color3.fromRGB(255, 99, 71), Color3.fromRGB(240, 128, 128),
+            Color3.fromRGB(135, 206, 235), Color3.fromRGB(205, 133, 63)
+        }
+        while houseColorRunning do
+            for _, color in ipairs(houseColors) do
+                if not houseColorRunning then break end
+                local args = { [1] = "ColorPickHouse", [2] = color }
+                local success, err = pcall(function()
+                    remoteHouse:FireServer(unpack(args))
+                end)
+                if not success then
+                    warn("خطأ أثناء إرسال اللون:", err)
+                end
+                wait(0.5) -- تقدر تخليها أبطأ لو استمر الطرد
+            end
+        end
+    end)
+end
+local function stopHouseColors()
+    houseColorRunning = false
+end
+tabColors:AddToggle({
+    Name    = "تغيير لون المنزل تلقائي",
+    Default = false,
+    Callback = function(state)
+        if state then
+            startHouseColors()
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="تغيير لون المنزل تلقائي مفعل", Time=5})
+        else
+            stopHouseColors()
+            OrionLib:MakeNotification({Name="تم الإيقاف", Content="تغيير لون المنزل تلقائي معطل", Time=5})
+        end
+    end,
+})
 
 -----------------------------------------------------------
 -- تحديث قائمة اللاعبين في تبويب الاستهداف كل 5 ثواني
