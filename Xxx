@@ -1,189 +1,246 @@
--- الحصول على اللاعب وPlayerGui
-local Player = game.Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
+---------------------------
+-- إعداد الخدمات والمتغيرات
+---------------------------
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local localPlayer = Players.LocalPlayer
 
+-- دالة إشعار بسيطة (يمكنك استبدالها بواجهة إشعار خاصة إذا رغبت)
+local function Notify(title, content)
+    print(title .. ": " .. content)
+end
+
+-- قائمة الألوان للتأثيرات
+local colors = {
+    Color3.fromRGB(255,   0,   0),   -- أحمر
+    Color3.fromRGB(0,   255,   0),     -- أخضر
+    Color3.fromRGB(0,     0, 255),      -- أزرق
+    Color3.fromRGB(255, 255,   0),       -- أصفر
+    Color3.fromRGB(255, 165,   0),       -- برتقالي
+    Color3.fromRGB(75,    0, 130),       -- بنفسجي غامق
+    Color3.fromRGB(255,  20, 147),        -- وردي فاقع
+    Color3.fromRGB(0,   255, 255),        -- سماوي
+    Color3.fromRGB(255, 105, 180),         -- وردي ناعم
+    Color3.fromRGB(138,  43, 226),         -- بنفسجي ملكي
+    Color3.fromRGB(0,   191, 255),         -- أزرق سماوي فاقع
+    Color3.fromRGB(0,   250, 154),         -- أخضر نعناعي
+    Color3.fromRGB(255,  99,  71),         -- طماطمي
+    Color3.fromRGB(123, 104, 238),         -- بنفسجي باهت
+    Color3.fromRGB(173, 255,  47),          -- أخضر فسفوري
+    Color3.fromRGB(255,   0, 255),          -- أرجواني
+    Color3.fromRGB(192, 192, 192),          -- رمادي فاتح
+    Color3.fromRGB(0,   128, 128),          -- تركواز غامق
+}
+
+local function blendColors(c1, c2, alpha)
+    return Color3.new(
+        c1.R*(1 - alpha) + c2.R*alpha,
+        c1.G*(1 - alpha) + c2.G*alpha,
+        c1.B*(1 - alpha) + c2.B*alpha
+    )
+end
+
+-----------------------------------
+-- تأثيرات "الاسم" (النافذة الرئيسية للألوان)
+-----------------------------------
+local gradientRunning = false
+local function startGradient()
+    if gradientRunning then return end
+    gradientRunning = true
+    spawn(function()
+        local idx = 1
+        while gradientRunning do
+            local c1 = colors[idx]
+            local c2 = colors[idx + 1] or colors[1]
+            for i = 0, 1, 0.05 do
+                if not gradientRunning then return end
+                local blended = blendColors(c1, c2, i)
+                local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
+                if remote then
+                    remote:FireServer("PickingRPNameColor", blended)
+                end
+                wait(0.25)
+            end
+            idx = idx + 1
+            if idx > #colors then idx = 1 end
+            wait(1)
+        end
+    end)
+end
+
+local function stopGradient()
+    gradientRunning = false
+end
+
+local blinkRunning = false
+local function startBlink()
+    if blinkRunning then return end
+    blinkRunning = true
+    spawn(function()
+        local idx = 1
+        while blinkRunning do
+            local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
+            if remote then
+                remote:FireServer("PickingRPNameColor", colors[idx])
+            end
+            idx = idx + 1
+            if idx > #colors then idx = 1 end
+            wait(1.2)
+        end
+    end)
+end
+
+local function stopBlink()
+    blinkRunning = false
+end
+
+local waveRunning = false
+local function startWave()
+    if waveRunning then return end
+    waveRunning = true
+    spawn(function()
+        while waveRunning do
+            for _, color in ipairs(colors) do
+                if not waveRunning then return end
+                local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
+                if remote then
+                    remote:FireServer("PickingRPNameColor", color)
+                end
+                wait(0.3)
+            end
+        end
+    end)
+end
+
+local function stopWave()
+    waveRunning = false
+end
+
+-----------------------------------
+-- تأثيرات "البايو"
+-----------------------------------
+local gradientBioRunning = false
+local function startGradientBio()
+    if gradientBioRunning then return end
+    gradientBioRunning = true
+    spawn(function()
+        local idx = 1
+        while gradientBioRunning do
+            local c1 = colors[idx]
+            local c2 = colors[idx + 1] or colors[1]
+            for i = 0, 1, 0.05 do
+                if not gradientBioRunning then return end
+                local blended = blendColors(c1, c2, i)
+                local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
+                if remote then
+                    remote:FireServer("PickingRPBioColor", blended)
+                end
+                wait(0.25)
+            end
+            idx = idx + 1
+            if idx > #colors then idx = 1 end
+            wait(1)
+        end
+    end)
+end
+
+local function stopGradientBio()
+    gradientBioRunning = false
+end
+
+local blinkBioRunning = false
+local function startBlinkBio()
+    if blinkBioRunning then return end
+    blinkBioRunning = true
+    spawn(function()
+        local idx = 1
+        while blinkBioRunning do
+            local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
+            if remote then
+                remote:FireServer("PickingRPBioColor", colors[idx])
+            end
+            idx = idx + 1
+            if idx > #colors then idx = 1 end
+            wait(1.2)
+        end
+    end)
+end
+
+local function stopBlinkBio()
+    blinkBioRunning = false
+end
+
+local waveBioRunning = false
+local function startWaveBio()
+    if waveBioRunning then return end
+    waveBioRunning = true
+    spawn(function()
+        while waveBioRunning do
+            for _, color in ipairs(colors) do
+                if not waveBioRunning then return end
+                local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
+                if remote then
+                    remote:FireServer("PickingRPBioColor", color)
+                end
+                wait(0.3)
+            end
+        end
+    end)
+end
+
+local function stopWaveBio()
+    waveBioRunning = false
+end
+
+-----------------------------------
+-- إعدادات اللاعب
+-----------------------------------
+local jumpPower, walkSpeed = 150, 50
+local enableJump, enableSpeed = false, false
+
+local function updateJumpPower()
+    local char = localPlayer.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
+        if hum then
+            hum.JumpPower = enableJump and jumpPower or 50
+        end
+    end
+end
+
+local function updateWalkSpeed()
+    local char = localPlayer.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
+        if hum then
+            hum.WalkSpeed = enableSpeed and walkSpeed or 16
+        end
+    end
+end
+
+-----------------------------------
+-- إنشاء واجهة المنيو (GUI)
+-----------------------------------
 -- إنشاء ScreenGui
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ArceusXMenu"
+ScreenGui.Name = "CustomMenu"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = PlayerGui
+ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui")
 
--- إنشاء الإطار الرئيسي للمنيو (يمكن تحريكه)
+-- الإطار الرئيسي للمنيو
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-mainFrame.BorderSizePixel = 0
-mainFrame.Position = UDim2.new(0.3, 0, 0.3, 0)
-mainFrame.Size = UDim2.new(0, 400, 0, 300)
+mainFrame.Size = UDim2.new(0,600,0,400)
+mainFrame.Position = UDim2.new(0.3,0,0.3,0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+mainFrame.BackgroundTransparency = 0.2
 mainFrame.Parent = ScreenGui
 
--- إضافة عنوان للمنيو
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Name = "Title"
-titleLabel.BackgroundTransparency = 1
-titleLabel.Position = UDim2.new(0, 0, 0, 0)
-titleLabel.Size = UDim2.new(1, 0, 0, 50)
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.Text = "Arceus X Menu"
-titleLabel.TextColor3 = Color3.new(1, 1, 1)
-titleLabel.TextScaled = true
-titleLabel.Parent = mainFrame
-
--- حاوية الأزرار الخاصة بالتبويبات (Tabs)
-local tabContainer = Instance.new("Frame")
-tabContainer.Name = "TabContainer"
-tabContainer.BackgroundTransparency = 1
-tabContainer.Position = UDim2.new(0, 0, 0, 50)
-tabContainer.Size = UDim2.new(1, 0, 0, 40)
-tabContainer.Parent = mainFrame
-
--- حاوية المحتوى لكل تبويب
-local contentContainer = Instance.new("Frame")
-contentContainer.Name = "ContentContainer"
-contentContainer.BackgroundTransparency = 1
-contentContainer.Position = UDim2.new(0, 0, 0, 90)
-contentContainer.Size = UDim2.new(1, 0, 1, -90)
-contentContainer.Parent = mainFrame
-
-----------------------------------------------------------------
--- إنشاء أزرار التبويبات (الرئيسية والإعدادات)
-----------------------------------------------------------------
-local ButtonTemplate = Instance.new("TextButton")
-ButtonTemplate.Size = UDim2.new(0, 200, 1, 0)
-ButtonTemplate.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-ButtonTemplate.BorderSizePixel = 0
-ButtonTemplate.Font = Enum.Font.Gotham
-ButtonTemplate.TextColor3 = Color3.new(1,1,1)
-ButtonTemplate.TextScaled = true
-
-local tabMainButton = ButtonTemplate:Clone()
-tabMainButton.Name = "MainTabButton"
-tabMainButton.Text = "الرئيسية"
-tabMainButton.Parent = tabContainer
-tabMainButton.Position = UDim2.new(0, 0, 0, 0)
-
-local tabSettingsButton = ButtonTemplate:Clone()
-tabSettingsButton.Name = "SettingsTabButton"
-tabSettingsButton.Text = "الإعدادات"
-tabSettingsButton.Parent = tabContainer
-tabSettingsButton.Position = UDim2.new(0, 200, 0, 0)
-
-----------------------------------------------------------------
--- إنشاء محتويات تبويب "الرئيسية"
-----------------------------------------------------------------
-local mainContent = Instance.new("Frame")
-mainContent.Name = "MainContent"
-mainContent.BackgroundTransparency = 1
-mainContent.Size = UDim2.new(1, 0, 1, 0)
-mainContent.Parent = contentContainer
-
--- زر لتفعيل Arceus X داخل المحتوى الرئيسي
-local activateButton = Instance.new("TextButton")
-activateButton.Name = "ActivateArceusX"
-activateButton.Size = UDim2.new(0, 200, 0, 50)
-activateButton.Position = UDim2.new(0.5, -100, 0.4, 0)
-activateButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-activateButton.BorderSizePixel = 0
-activateButton.Font = Enum.Font.GothamBold
-activateButton.TextColor3 = Color3.new(1,1,1)
-activateButton.TextScaled = true
-activateButton.Text = "تفعيل Arceus X"
-activateButton.Parent = mainContent
-
-activateButton.MouseButton1Click:Connect(function()
-    -- قم بتحميل سكربت Arceus X، استبدل الرابط بالرابط الصحيح إذا لزم الأمر
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/ArceusXScript/main/ArceusX.lua", true))()
-end)
-
-----------------------------------------------------------------
--- إنشاء محتويات تبويب "الإعدادات"
-----------------------------------------------------------------
-local settingsContent = Instance.new("Frame")
-settingsContent.Name = "SettingsContent"
-settingsContent.BackgroundTransparency = 1
-settingsContent.Size = UDim2.new(1, 0, 1, 0)
-settingsContent.Parent = contentContainer
-settingsContent.Visible = false -- إخفاء محتوى الإعدادات بشكل مبدئي
-
--- زر لتبديل الخلفية الديناميكية
-local dynamicBGToggle = Instance.new("TextButton")
-dynamicBGToggle.Name = "DynamicBGToggle"
-dynamicBGToggle.Size = UDim2.new(0, 200, 0, 50)
-dynamicBGToggle.Position = UDim2.new(0.5, -100, 0.3, 0)
-dynamicBGToggle.BackgroundColor3 = Color3.fromRGB(70,70,70)
-dynamicBGToggle.BorderSizePixel = 0
-dynamicBGToggle.Font = Enum.Font.GothamBold
-dynamicBGToggle.TextColor3 = Color3.new(1,1,1)
-dynamicBGToggle.TextScaled = true
-dynamicBGToggle.Text = "تبديل الخلفية"
-dynamicBGToggle.Parent = settingsContent
-
-local dynamicBGOn = false
-dynamicBGToggle.MouseButton1Click:Connect(function()
-    dynamicBGOn = not dynamicBGOn
-    if dynamicBGOn then
-        dynamicBGToggle.Text = "خلفية: تشغيل"
-        spawn(function()
-            while dynamicBGOn do 
-                -- تغيير لون الخلفية باستخدام نظام HSV للحصول على ألوان متدرّجة
-                mainFrame.BackgroundColor3 = Color3.fromHSV(tick() % 5 / 5, 0.8, 0.8)
-                wait(0.1)
-            end
-        end)
-    else
-        dynamicBGToggle.Text = "تبديل الخلفية"
-        mainFrame.BackgroundColor3 = Color3.fromRGB(30,30,30)
-    end
-end)
-
--- زر لإعادة تعيين الإعدادات الافتراضية
-local resetButton = Instance.new("TextButton")
-resetButton.Name = "ResetButton"
-resetButton.Size = UDim2.new(0, 200, 0, 50)
-resetButton.Position = UDim2.new(0.5, -100, 0.5, 0)
-resetButton.BackgroundColor3 = Color3.fromRGB(70,70,70)
-resetButton.BorderSizePixel = 0
-resetButton.Font = Enum.Font.GothamBold
-resetButton.TextColor3 = Color3.new(1,1,1)
-resetButton.TextScaled = true
-resetButton.Text = "إعادة تعيين"
-resetButton.Parent = settingsContent
-
-resetButton.MouseButton1Click:Connect(function()
-    dynamicBGOn = false
-    dynamicBGToggle.Text = "تبديل الخلفية"
-    mainFrame.BackgroundColor3 = Color3.fromRGB(30,30,30)
-    print("تم إعادة تعيين الإعدادات")
-end)
-
-----------------------------------------------------------------
--- تبديل تبويبات المنيو
-----------------------------------------------------------------
-tabMainButton.MouseButton1Click:Connect(function()
-    mainContent.Visible = true
-    settingsContent.Visible = false
-    tabMainButton.BackgroundColor3 = Color3.fromRGB(80,80,80)
-    tabSettingsButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
-end)
-
-tabSettingsButton.MouseButton1Click:Connect(function()
-    mainContent.Visible = false
-    settingsContent.Visible = true
-    tabMainButton.BackgroundColor3 = Color3.fromRGB(50,50,50)
-    tabSettingsButton.BackgroundColor3 = Color3.fromRGB(80,80,80)
-end)
-
-----------------------------------------------------------------
--- وظيفة سحب الإطار (دراج آند دبل)
-----------------------------------------------------------------
-local UserInputService = game:GetService("UserInputService")
+-- خاصية سحب الإطار
+local UIS = game:GetService("UserInputService")
 local dragging = false
-local dragInput, dragStart, startPos
-
-local function update(input)
-    local delta = input.Position - dragStart
-    mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
+local dragStart, startPos
 
 mainFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -191,19 +248,602 @@ mainFrame.InputBegan:Connect(function(input)
         dragStart = input.Position
         startPos = mainFrame.Position
         input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
         end)
     end
 end)
 mainFrame.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement then
-        dragInput = input
+    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        update(input)
-    end
-end)
+
+-- عنوان المنيو
+local titleLabel = Instance.new("TextLabel", mainFrame)
+titleLabel.Size = UDim2.new(1,0,0,50)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "منيو محمد TN"
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextScaled = true
+titleLabel.TextColor3 = Color3.new(1,1,1)
+
+-- إطار أزرار التبويبات
+local tabsFrame = Instance.new("Frame", mainFrame)
+tabsFrame.Size = UDim2.new(1,0,0,40)
+tabsFrame.Position = UDim2.new(0,0,0,50)
+tabsFrame.BackgroundTransparency = 1
+
+-- إطار المحتوى
+local contentFrame = Instance.new("Frame", mainFrame)
+contentFrame.Size = UDim2.new(1,0,1,-90)
+contentFrame.Position = UDim2.new(0,0,0,90)
+contentFrame.BackgroundTransparency = 1
+
+-----------------------------------
+-- إنشاء تبويبات ومحتوياتها
+-----------------------------------
+local currentTab = nil
+local tabButtons = {}
+local contentFrames = {}
+
+local function createTabButton(name, pos)
+    local btn = Instance.new("TextButton", tabsFrame)
+    btn.Size = UDim2.new(0,100,1,0)
+    btn.Position = UDim2.new(0, pos, 0, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    btn.Font = Enum.Font.Gotham
+    btn.TextScaled = true
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Text = name
+    return btn
+end
+
+local function createContentFrame(name)
+    local frame = Instance.new("Frame", contentFrame)
+    frame.Name = name
+    frame.Size = UDim2.new(1,0,1,0)
+    frame.BackgroundTransparency = 1
+    frame.Visible = false
+    return frame
+end
+
+local tabNames = {"الرئيسية", "اللاعب", "أغراض تحكم", "سكربتات", "استهداف", "أغراض", "ألوان"}
+for i, name in ipairs(tabNames) do
+    tabButtons[name] = createTabButton(name, (i-1)*100)
+    contentFrames[name] = createContentFrame(name)
+    tabButtons[name].MouseButton1Click:Connect(function()
+        if currentTab then currentTab.Visible = false end
+        currentTab = contentFrames[name]
+        currentTab.Visible = true
+        for tname, tbtn in pairs(tabButtons) do
+            tbtn.BackgroundColor3 = (tname == name) and Color3.fromRGB(90,90,90) or Color3.fromRGB(70,70,70)
+        end
+    end)
+end
+-- تحديد التبويب الافتراضي
+currentTab = contentFrames["الرئيسية"]
+currentTab.Visible = true
+tabButtons["الرئيسية"].BackgroundColor3 = Color3.fromRGB(90,90,90)
+
+-- دوال مساعدة لإنشاء عناصر الواجهة
+local function createButton(parent, text, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(0,150,0,40)
+    btn.BackgroundColor3 = Color3.fromRGB(80,80,80)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextScaled = true
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.Text = text
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+local function createToggle(parent, text, callback)
+    local toggle = Instance.new("TextButton", parent)
+    toggle.Size = UDim2.new(0,150,0,40)
+    toggle.BackgroundColor3 = Color3.fromRGB(80,80,80)
+    toggle.Font = Enum.Font.GothamBold
+    toggle.TextScaled = true
+    toggle.TextColor3 = Color3.new(1,1,1)
+    local state = false
+    toggle.Text = text .. " : OFF"
+    toggle.MouseButton1Click:Connect(function()
+        state = not state
+        toggle.Text = text .. " : " .. (state and "ON" or "OFF")
+        callback(state)
+    end)
+    return toggle
+end
+
+local function createTextbox(parent, text, default, callback)
+    local container = Instance.new("Frame", parent)
+    container.Size = UDim2.new(0,320,0,30)
+    container.BackgroundTransparency = 1
+    
+    local label = Instance.new("TextLabel", container)
+    label.Size = UDim2.new(0,150,1,0)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.Gotham
+    label.TextScaled = true
+    label.TextColor3 = Color3.new(1,1,1)
+    label.Text = text
+    
+    local box = Instance.new("TextBox", container)
+    box.Size = UDim2.new(0,150,1,0)
+    box.Position = UDim2.new(0,160,0,0)
+    box.BackgroundColor3 = Color3.fromRGB(100,100,100)
+    box.Font = Enum.Font.Gotham
+    box.TextScaled = true
+    box.TextColor3 = Color3.new(1,1,1)
+    box.Text = default or ""
+    box.FocusLost:Connect(function(enterPressed)
+        callback(box.Text)
+    end)
+    
+    return container
+end
+
+-----------------------------------
+-- محتويات تبويب "الرئيسية"
+-----------------------------------
+do
+    local cf = contentFrames["الرئيسية"]
+    local welcome = Instance.new("TextLabel", cf)
+    welcome.Size = UDim2.new(1,0,0,40)
+    welcome.Position = UDim2.new(0,0,0,10)
+    welcome.BackgroundTransparency = 1
+    welcome.Font = Enum.Font.GothamBold
+    welcome.TextScaled = true
+    welcome.TextColor3 = Color3.new(1,1,1)
+    welcome.Text = "مرحبا بكم في منيو محمد TN"
+end
+
+-----------------------------------
+-- محتويات تبويب "اللاعب"
+-----------------------------------
+do
+    local cf = contentFrames["اللاعب"]
+    local y = 10
+    local tb1 = createTextbox(cf, "قوة القفز", tostring(jumpPower), function(val)
+        jumpPower = tonumber(val) or 150
+        updateJumpPower()
+    end)
+    tb1.Position = UDim2.new(0,10,0,y)
+    y = y + 40
+    
+    local tb2 = createTextbox(cf, "سرعة المشي", tostring(walkSpeed), function(val)
+        walkSpeed = tonumber(val) or 50
+        updateWalkSpeed()
+    end)
+    tb2.Position = UDim2.new(0,10,0,y)
+    y = y + 40
+    
+    local tgl1 = createToggle(cf, "تفعيل القفز", function(state)
+        enableJump = state
+        updateJumpPower()
+    end)
+    tgl1.Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    
+    local tgl2 = createToggle(cf, "تفعيل السرعة", function(state)
+        enableSpeed = state
+        updateWalkSpeed()
+    end)
+    tgl2.Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    
+    createButton(cf, "تنقل", function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Mohakha1/-/refs/heads/main/Teleport.txt"))()
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    
+    createToggle(cf, "Noclip", function(state)
+        if state then
+            noclipConn = RunService.Stepped:Connect(function()
+                if localPlayer.Character then
+                    for _, part in ipairs(localPlayer.Character:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end)
+        else
+            if noclipConn then noclipConn:Disconnect() end
+        end
+    end).Position = UDim2.new(0,10,0,y)
+end
+
+-----------------------------------
+-- محتويات تبويب "أغراض تحكم"
+-----------------------------------
+do
+    local cf = contentFrames["أغراض تحكم"]
+    local y = 10
+    createToggle(cf, "إزالة لاق", function(state)
+        if state then
+            for _, v in ipairs(workspace:GetDescendants()) do
+                if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
+                    v:Destroy()
+                end
+            end
+            Notify("تنبيه", "تم إزالة اللّاق")
+        end
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    
+    createToggle(cf, "تسلق جدران", function(state)
+        if state then
+            wallClimbConn = RunService.Heartbeat:Connect(function()
+                local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local ray = Ray.new(hrp.Position, hrp.CFrame.LookVector * 3)
+                    if workspace:FindPartOnRay(ray, localPlayer.Character) then
+                        hrp.Velocity = Vector3.new(0,50,0)
+                    end
+                end
+            end)
+        else
+            if wallClimbConn then wallClimbConn:Disconnect() end
+        end
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    
+    createButton(cf, "اختفاء", function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/GGH52lan/GGH52lan/main/Invis.lua"))()
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    
+    createButton(cf, "طيران", function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Mohakha1/-/refs/heads/main/Protected_7047204136562154%20(1).txt"))()
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    
+    createButton(cf, "كشف الاقفال", function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Mohakha1/-/refs/heads/main/Tor.txt"))()
+    end).Position = UDim2.new(0,10,0,y)
+end
+
+-----------------------------------
+-- محتويات تبويب "سكربتات"
+-----------------------------------
+do
+    local cf = contentFrames["سكربتات"]
+    local y = 10
+    createButton(cf, "ساندر اكس", function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/sXPiterXs1111/SanderXV2.65/main/sanderXNewV2.65.lua"))()
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    createButton(cf, "ايس هيب", function()
+        loadstring(game:HttpGet("https://orbitsc.net/brook"))()
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    createButton(cf, "Project Script", function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/ProjectSunterium/Project-Sunterium/refs/heads/main/Project%20Sunterium"))()
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    createButton(cf, "Orbitsc", function()
+        loadstring(game:HttpGet("https://orbitsc.net/brook"))()
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    createButton(cf, "Darkon", function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/TheDarkoneMarcillisePex/Other-Scripts/main/Brook%20Haven%20Gui"))()
+    end).Position = UDim2.new(0,10,0,y)
+end
+
+-----------------------------------
+-- محتويات تبويب "استهداف"
+-----------------------------------
+do
+    local cf = contentFrames["استهداف"]
+    local y = 10
+    -- استخدم TextBox لكتابة اسم اللاعب
+    local targetBox = createTextbox(cf, "اسم اللاعب", "", function(val)
+        selectedName = val
+    end)
+    targetBox.Position = UDim2.new(0,10,0,y)
+    y = y + 40
+    createToggle(cf, "تتبع", function(state)
+        if state then
+            if not selectedName or selectedName == "" then
+                Notify("خطأ", "اختر لاعب أولاً!")
+                return
+            end
+            if followConn then followConn:Disconnect() end
+            followConn = RunService.Heartbeat:Connect(function()
+                local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+                local t = Players:FindFirstChild(selectedName)
+                if hrp and t and t.Character then
+                    local th = t.Character:FindFirstChild("HumanoidRootPart")
+                    if th then hrp.CFrame = th.CFrame + Vector3.new(0,3,0) end
+                end
+            end)
+            Notify("تنبيه", "تتبع مفعل")
+        else
+            if followConn then followConn:Disconnect() end
+            Notify("تنبيه", "تتبع مُعطّل")
+        end
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    createToggle(cf, "bang1", function(state)
+        if state then
+            if not selectedName or selectedName == "" then
+                Notify("خطأ", "اختر لاعب أولاً!")
+                return
+            end
+            -- تفعيل وظيفة bang1
+            local function bang1(name)
+                local target = Players:FindFirstChild(name)
+                if not target then
+                    Notify("خطأ", "لاعب غير موجود")
+                    return
+                end
+                local targetChar = target.Character or target.CharacterAdded:Wait()
+                local targetHead = targetChar:WaitForChild("Head")
+                local myChar = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+                local hrp = myChar:WaitForChild("HumanoidRootPart")
+                local humanoid = myChar:WaitForChild("Humanoid")
+                humanoid.Sit = true
+                hrp.CFrame = CFrame.new(targetHead.Position + Vector3.new(0,2.1,-0.5))
+                for _, v in ipairs(hrp:GetChildren()) do
+                    if v:IsA("Attachment") or v:IsA("AlignPosition") or v:IsA("AlignOrientation") then
+                        v:Destroy()
+                    end
+                end
+                local myAttach = Instance.new("Attachment", hrp)
+                local headAttach = Instance.new("Attachment", targetHead)
+                local alignPos = Instance.new("AlignPosition", hrp)
+                alignPos.Attachment0 = myAttach
+                alignPos.Attachment1 = headAttach
+                alignPos.RigidityEnabled = true
+                alignPos.Responsiveness = 200
+                alignPos.MaxForce = math.huge
+                local alignOri = Instance.new("AlignOrientation", hrp)
+                alignOri.Attachment0 = myAttach
+                alignOri.Attachment1 = headAttach
+                alignOri.RigidityEnabled = true
+                alignOri.Responsiveness = 200
+                alignOri.MaxTorque = math.huge
+                local t = 0
+                if sitHeadConn then sitHeadConn:Disconnect() end
+                sitHeadConn = RunService.RenderStepped:Connect(function(dt)
+                    t = t + dt
+                    local sway = math.sin(t * 20) * 0.3
+                    myAttach.Position = Vector3.new(0,2.1,-0.5 + sway)
+                end)
+                Notify("تنبيه", "bang1 مفعل على: " .. name)
+            end
+            bang1(selectedName)
+        else
+            if sitHeadConn then sitHeadConn:Disconnect() end
+            local char = localPlayer.Character
+            if char then
+                local humanoid = char:FindFirstChild("Humanoid")
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if humanoid then humanoid.Sit = false end
+                if hrp then
+                    for _, v in ipairs(hrp:GetChildren()) do
+                        if v:IsA("Attachment") or v:IsA("AlignPosition") or v:IsA("AlignOrientation") then
+                            v:Destroy()
+                        end
+                    end
+                end
+            end
+            Notify("تنبيه", "bang1 مُعطّل")
+        end
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    createButton(cf, "قتل بالباص", function()
+        if not selectedName or selectedName == "" then
+            Notify("خطأ", "اختر لاعب أولاً!")
+            return
+        end
+        local player = localPlayer
+        local target = Players:FindFirstChild(selectedName)
+        if not target then
+            Notify("خطأ", "لاعب غير موجود")
+            return
+        end
+        local char = player.Character or player.CharacterAdded:Wait()
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then
+            Notify("خطأ", "لا يوجد HumanoidRootPart")
+            return
+        end
+        local originalCFrame = hrp.CFrame
+        local firstCFrame = CFrame.new(1039.02393, 78.6514969, -1034.72437,
+                -0.549868405, 0.0108198766, -0.835181236,
+                -8.43425005e-05, 0.999915361, 0.0130095575,
+                0.835251272, 0.00722398562, -0.54982096)
+        local secondCFrame = CFrame.new(1051.32434, 78.612854, -1038.99731,
+                0.82696569, 0.00431149732, -0.562235892,
+                0.00424380461, 0.999894261, 0.0139096817,
+                0.562236369, -0.0138888489, 0.826859951)
+        hrp.CFrame = firstCFrame
+        wait(0.5)
+        local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1Ca1r")
+        if remote then remote:FireServer("PickingCar", "SchoolBus") end
+        wait(1.5)
+        hrp.CFrame = secondCFrame
+        wait(0.2)
+        local targetHRP = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+        if targetHRP then
+            local startTime = tick()
+            while tick() - startTime < 3 do
+                local angle = (tick() - startTime) * 20
+                local radius = 5
+                local offset = Vector3.new(math.cos(angle)*radius, 0, math.sin(angle)*radius)
+                hrp.CFrame = CFrame.new(targetHRP.Position + offset) * CFrame.Angles(0, math.rad(angle*60), 0)
+                wait()
+            end
+        end
+        hrp.CFrame = CFrame.new(hrp.Position.X, -100, hrp.Position.Z)
+        wait(0.05)
+        local deleteArgs = { "DeleteAllVehicles" }
+        local deleteRemote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1Ca1r")
+        if deleteRemote then deleteRemote:FireServer(unpack(deleteArgs)) end
+        wait(0.1)
+        hrp.CFrame = originalCFrame
+    end).Position = UDim2.new(0,10,0,y)
+end
+
+-----------------------------------
+-- محتويات تبويب "أغراض"
+-----------------------------------
+do
+    local cf = contentFrames["أغراض"]
+    local y = 10
+    createButton(cf, "حقيبة النار", function()
+        local args = { "PickingTools", "PaperbagFire" }
+        local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1Too1l")
+        if remote then remote:InvokeServer(unpack(args)) end
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    createButton(cf, "كريستال 1", function()
+        local args = { "PickingTools", "Crystals" }
+        local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1Too1l")
+        if remote then remote:InvokeServer(unpack(args)) end
+    end).Position = UDim2.new(0,10,0,y)
+end
+
+-----------------------------------
+-- محتويات تبويب "ألوان"
+-----------------------------------
+do
+    local cf = contentFrames["ألوان"]
+    local y = 10
+    local sec1 = Instance.new("TextLabel", cf)
+    sec1.Size = UDim2.new(0,200,0,30)
+    sec1.Position = UDim2.new(0,10,0,y)
+    sec1.BackgroundTransparency = 1
+    sec1.Font = Enum.Font.GothamBold
+    sec1.TextScaled = true
+    sec1.TextColor3 = Color3.new(1,1,1)
+    sec1.Text = "الاسم"
+    y = y + 40
+    
+    createToggle(cf, "تدرج لون الاسم", function(state)
+        if state then
+            stopBlink()
+            stopWave()
+            startGradient()
+            Notify("تنبيه", "تدرج لون الاسم مفعل")
+        else
+            stopGradient()
+        end
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    
+    createToggle(cf, "وميض لون الاسم", function(state)
+        if state then
+            stopGradient()
+            stopWave()
+            startBlink()
+            Notify("تنبيه", "وميض لون الاسم مفعل")
+        else
+            stopBlink()
+        end
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    
+    createToggle(cf, "موجة لون الاسم", function(state)
+        if state then
+            stopGradient()
+            stopBlink()
+            startWave()
+            Notify("تنبيه", "موجة لون الاسم مفعل")
+        else
+            stopWave()
+        end
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 60
+    
+    local sec2 = Instance.new("TextLabel", cf)
+    sec2.Size = UDim2.new(0,200,0,30)
+    sec2.Position = UDim2.new(0,10,0,y)
+    sec2.BackgroundTransparency = 1
+    sec2.Font = Enum.Font.GothamBold
+    sec2.TextScaled = true
+    sec2.TextColor3 = Color3.new(1,1,1)
+    sec2.Text = "البايو"
+    y = y + 40
+    
+    createToggle(cf, "تدرج لون البايو", function(state)
+        if state then
+            stopBlinkBio()
+            stopWaveBio()
+            startGradientBio()
+            Notify("تنبيه", "تدرج لون البايو مفعل")
+        else
+            stopGradientBio()
+        end
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    
+    createToggle(cf, "وميض لون البايو", function(state)
+        if state then
+            stopGradientBio()
+            stopWaveBio()
+            startBlinkBio()
+            Notify("تنبيه", "وميض لون البايو مفعل")
+        else
+            stopBlinkBio()
+        end
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 50
+    
+    createToggle(cf, "موجة لون البايو", function(state)
+        if state then
+            stopGradientBio()
+            stopBlinkBio()
+            startWaveBio()
+            Notify("تنبيه", "موجة لون البايو مفعل")
+        else
+            stopWaveBio()
+        end
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 60
+    
+    local sec3 = Instance.new("TextLabel", cf)
+    sec3.Size = UDim2.new(0,200,0,30)
+    sec3.Position = UDim2.new(0,10,0,y)
+    sec3.BackgroundTransparency = 1
+    sec3.Font = Enum.Font.GothamBold
+    sec3.TextScaled = true
+    sec3.TextColor3 = Color3.new(1,1,1)
+    sec3.Text = "الافتار"
+    y = y + 40
+    
+    createToggle(cf, "تغيير لون الافاتار تلقائي", function(state)
+        if state then
+            startAvatarColors()
+            Notify("تنبيه", "تغيير لون الافاتار التلقائي مفعل")
+        else
+            stopAvatarColors()
+            Notify("تنبيه", "تغيير لون الافاتار التلقائي معطل")
+        end
+    end).Position = UDim2.new(0,10,0,y)
+    y = y + 60
+    
+    local sec4 = Instance.new("TextLabel", cf)
+    sec4.Size = UDim2.new(0,200,0,30)
+    sec4.Position = UDim2.new(0,10,0,y)
+    sec4.BackgroundTransparency = 1
+    sec4.Font = Enum.Font.GothamBold
+    sec4.TextScaled = true
+    sec4.TextColor3 = Color3.new(1,1,1)
+    sec4.Text = "السياره"
+    y = y + 40
+    
+    local sec5 = Instance.new("TextLabel", cf)
+    sec5.Size = UDim2.new(0,200,0,30)
+    sec5.Position = UDim2.new(0,10,0,y)
+    sec5.BackgroundTransparency = 1
+    sec5.Font = Enum.Font.GothamBold
+    sec5.TextScaled = true
+    sec5.TextColor3 = Color3.new(1,1,1)
+    sec5.Text = "المنزل"
+end
+
+-- نهاية السكربت
