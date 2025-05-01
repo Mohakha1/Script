@@ -1,54 +1,51 @@
----------------------------
--- إعداد الخدمات والمتغيرات
----------------------------
+-- تحميل مكتبة Orion
+local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/jensonhirst/Orion/main/source"))()
+
+-- الخدمات
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local localPlayer = Players.LocalPlayer
 
--- دالة إشعار بسيطة (يمكنك استبدالها بواجهة إشعار خاصة إذا رغبت)
-local function Notify(title, content)
-    print(title .. ": " .. content)
-end
-
--- قائمة الألوان للتأثيرات
+-- قائمة الألوان للتدرّج والوميض والموجة (للقسمين: الاسم والبايو)
 local colors = {
-    Color3.fromRGB(255,   0,   0),   -- أحمر
-    Color3.fromRGB(0,   255,   0),     -- أخضر
-    Color3.fromRGB(0,     0, 255),      -- أزرق
-    Color3.fromRGB(255, 255,   0),       -- أصفر
-    Color3.fromRGB(255, 165,   0),       -- برتقالي
-    Color3.fromRGB(75,    0, 130),       -- بنفسجي غامق
-    Color3.fromRGB(255,  20, 147),        -- وردي فاقع
-    Color3.fromRGB(0,   255, 255),        -- سماوي
-    Color3.fromRGB(255, 105, 180),         -- وردي ناعم
-    Color3.fromRGB(138,  43, 226),         -- بنفسجي ملكي
-    Color3.fromRGB(0,   191, 255),         -- أزرق سماوي فاقع
-    Color3.fromRGB(0,   250, 154),         -- أخضر نعناعي
-    Color3.fromRGB(255,  99,  71),         -- طماطمي
-    Color3.fromRGB(123, 104, 238),         -- بنفسجي باهت
-    Color3.fromRGB(173, 255,  47),          -- أخضر فسفوري
-    Color3.fromRGB(255,   0, 255),          -- أرجواني
-    Color3.fromRGB(192, 192, 192),          -- رمادي فاتح
-    Color3.fromRGB(0,   128, 128),          -- تركواز غامق
+    Color3.fromRGB(255, 0, 0), -- أحمر
+    Color3.fromRGB(0, 255, 0), -- أخضر
+    Color3.fromRGB(0, 0, 255), -- أزرق
+    Color3.fromRGB(255, 255, 0), -- أصفر
+    Color3.fromRGB(255, 165, 0), -- برتقالي
+    Color3.fromRGB(75, 0, 130), -- بنفسجي غامق
+    Color3.fromRGB(255, 20, 147), -- وردي فاقع
+    Color3.fromRGB(0, 255, 255), -- سماوي
+    Color3.fromRGB(255, 105, 180), -- وردي ناعم
+    Color3.fromRGB(138, 43, 226), -- بنفسجي ملكي
+    Color3.fromRGB(0, 191, 255), -- أزرق سماوي فاقع
+    Color3.fromRGB(0, 250, 154), -- أخضر نعناعي
+    Color3.fromRGB(255, 99, 71), -- طماطمي
+    Color3.fromRGB(123, 104, 238), -- بنفسجي باهت
+    Color3.fromRGB(173, 255, 47), -- أخضر فسفوري
+    Color3.fromRGB(255, 0, 255), -- أرجواني
+    Color3.fromRGB(192, 192, 192), -- رمادي فاتح
+    Color3.fromRGB(0, 128, 128), -- تركواز غامق
 }
 
+-- دالة دمج لونين (للتدرّج)
 local function blendColors(c1, c2, alpha)
     return Color3.new(
-        c1.R*(1 - alpha) + c2.R*alpha,
-        c1.G*(1 - alpha) + c2.G*alpha,
-        c1.B*(1 - alpha) + c2.B*alpha
+        c1.R * (1 - alpha) + c2.R * alpha,
+        c1.G * (1 - alpha) + c2.G * alpha,
+        c1.B * (1 - alpha) + c2.B * alpha
     )
 end
 
------------------------------------
--- تأثيرات "الاسم" (النافذة الرئيسية للألوان)
------------------------------------
+-----------------------------------------------------------
+-- تأثيرات "الاسم" (في تبويب "الألوان > الاسم")
+-----------------------------------------------------------
 local gradientRunning = false
 local function startGradient()
     if gradientRunning then return end
     gradientRunning = true
-    spawn(function()
+    task.spawn(function()
         local idx = 1
         while gradientRunning do
             local c1 = colors[idx]
@@ -56,10 +53,7 @@ local function startGradient()
             for i = 0, 1, 0.05 do
                 if not gradientRunning then return end
                 local blended = blendColors(c1, c2, i)
-                local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
-                if remote then
-                    remote:FireServer("PickingRPNameColor", blended)
-                end
+                ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPNameColor", blended)
                 wait(0.25)
             end
             idx = idx + 1
@@ -68,7 +62,6 @@ local function startGradient()
         end
     end)
 end
-
 local function stopGradient()
     gradientRunning = false
 end
@@ -77,20 +70,16 @@ local blinkRunning = false
 local function startBlink()
     if blinkRunning then return end
     blinkRunning = true
-    spawn(function()
+    task.spawn(function()
         local idx = 1
         while blinkRunning do
-            local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
-            if remote then
-                remote:FireServer("PickingRPNameColor", colors[idx])
-            end
+            ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPNameColor", colors[idx])
             idx = idx + 1
             if idx > #colors then idx = 1 end
             wait(1.2)
         end
     end)
 end
-
 local function stopBlink()
     blinkRunning = false
 end
@@ -99,32 +88,34 @@ local waveRunning = false
 local function startWave()
     if waveRunning then return end
     waveRunning = true
-    spawn(function()
+    task.spawn(function()
         while waveRunning do
             for _, color in ipairs(colors) do
                 if not waveRunning then return end
-                local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
-                if remote then
-                    remote:FireServer("PickingRPNameColor", color)
-                end
+                ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPNameColor", color)
                 wait(0.3)
             end
         end
     end)
 end
-
 local function stopWave()
     waveRunning = false
 end
 
------------------------------------
+OrionLib:MakeNotification({
+    Name = "تنبيه",
+    Content = "تدرّج، وميض، وموجة ألوان الاسم جاهزون في تبويب الألوان > الاسم",
+    Time = 5,
+})
+
+-----------------------------------------------------------
 -- تأثيرات "البايو"
------------------------------------
+-----------------------------------------------------------
 local gradientBioRunning = false
 local function startGradientBio()
     if gradientBioRunning then return end
     gradientBioRunning = true
-    spawn(function()
+    task.spawn(function()
         local idx = 1
         while gradientBioRunning do
             local c1 = colors[idx]
@@ -132,10 +123,7 @@ local function startGradientBio()
             for i = 0, 1, 0.05 do
                 if not gradientBioRunning then return end
                 local blended = blendColors(c1, c2, i)
-                local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
-                if remote then
-                    remote:FireServer("PickingRPBioColor", blended)
-                end
+                ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPBioColor", blended)
                 wait(0.25)
             end
             idx = idx + 1
@@ -144,7 +132,6 @@ local function startGradientBio()
         end
     end)
 end
-
 local function stopGradientBio()
     gradientBioRunning = false
 end
@@ -153,20 +140,16 @@ local blinkBioRunning = false
 local function startBlinkBio()
     if blinkBioRunning then return end
     blinkBioRunning = true
-    spawn(function()
+    task.spawn(function()
         local idx = 1
         while blinkBioRunning do
-            local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
-            if remote then
-                remote:FireServer("PickingRPBioColor", colors[idx])
-            end
+            ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPBioColor", colors[idx])
             idx = idx + 1
             if idx > #colors then idx = 1 end
             wait(1.2)
         end
     end)
 end
-
 local function stopBlinkBio()
     blinkBioRunning = false
 end
@@ -175,306 +158,166 @@ local waveBioRunning = false
 local function startWaveBio()
     if waveBioRunning then return end
     waveBioRunning = true
-    spawn(function()
+    task.spawn(function()
         while waveBioRunning do
             for _, color in ipairs(colors) do
                 if not waveBioRunning then return end
-                local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r")
-                if remote then
-                    remote:FireServer("PickingRPBioColor", color)
-                end
+                ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPBioColor", color)
                 wait(0.3)
             end
         end
     end)
 end
-
 local function stopWaveBio()
     waveBioRunning = false
 end
 
------------------------------------
--- إعدادات اللاعب
------------------------------------
+-----------------------------------------------------------
+-- تهيئة المكتبة والواجهة وإنشاء التبويبات
+-----------------------------------------------------------
+OrionLib:Init()
+local Window = OrionLib:MakeWindow({
+    Name = "منيو محمد TN",
+    HidePremium = false,
+    SaveConfig = true,
+    ConfigFolder = "TNMenuConfig",
+})
+
+local tabMain = Window:MakeTab({ Name = "الصفحة الرئيسية", Icon = "🏠" })
+local tabPlayer = Window:MakeTab({ Name = "اللاعب", Icon = "🕹️" })
+local tabControl = Window:MakeTab({ Name = "أغراض تحكم", Icon = "⚙️" })
+local tabScripts = Window:MakeTab({ Name = "سكربتات", Icon = "🧩" })
+local tabTarget = Window:MakeTab({ Name = "استهداف", Icon = "🎯" })
+local tabItems = Window:MakeTab({ Name = "أغراض", Icon = "🎒" })
+local tabColors = Window:MakeTab({ Name = "الوان", Icon = "🎨" })
+-- إضافة تبويب "سكنات جاهزة"
+local tabSkins = Window:MakeTab({ Name = "سكنات جاهزة", Icon = "🎭" })
+
+-----------------------------------------------------------
+-- محتوى تبويب "سكنات جاهزة"
+-----------------------------------------------------------
+local skins = {
+    { Name = "سكن 1", ID = 63690008 },
+    { Name = "سكن 2", ID = 144076358 },
+    { Name = "سكن 3", ID = 144076760 },
+    { Name = "سكن 4", ID = 144075659 },
+    { Name = "سكن 5", ID = 11863491827 },
+    { Name = "سكن 6", ID = 17156568103 },
+    { Name = "سكن 7", ID = 7699174 },
+    { Name = "سكن 8", ID = 17744851762 },
+    { Name = "سكن 9", ID = 10789933479 },
+    { Name = "سكن 10", ID = 16266331263 },
+    { Name = "سكن 11", ID = 17274655265 },
+    { Name = "سكن 12", ID = 14475326317 },
+    { Name = "سكن 13", ID = 14388004031 },
+    { Name = "سكن 14", ID = 18538150608 },
+}
+
+for _, skin in ipairs(skins) do
+    tabSkins:AddButton({
+        Name = skin.Name,
+        Callback = function()
+            game:GetService("ReplicatedStorage").Remotes.Wear:InvokeServer(skin.ID)
+        end,
+    })
+end
+
+-----------------------------------------------------------
+-- تبويب اللاعب
+-----------------------------------------------------------
 local jumpPower, walkSpeed = 150, 50
 local enableJump, enableSpeed = false, false
-
-local function updateJumpPower()
-    local char = localPlayer.Character
-    if char then
-        local hum = char:FindFirstChild("Humanoid")
-        if hum then
-            hum.JumpPower = enableJump and jumpPower or 50
-        end
-    end
+local function()
+    local h = localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid")
+    if h then h.JumpPower = enableJump and jumpPower or 50 end
 end
-
 local function updateWalkSpeed()
-    local char = localPlayer.Character
-    if char then
-        local hum = char:FindFirstChild("Humanoid")
-        if hum then
-            hum.WalkSpeed = enableSpeed and walkSpeed or 16
-        end
-    end
+    local h = localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid")
+    if h then h.WalkSpeed = enableSpeed and walkSpeed or 16 end
 end
-
------------------------------------
--- إنشاء واجهة المنيو (GUI)
------------------------------------
--- إنشاء ScreenGui
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "CustomMenu"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = localPlayer:WaitForChild("PlayerGui")
-
--- الإطار الرئيسي للمنيو
-local mainFrame = Instance.new("Frame")
-mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0,600,0,400)
-mainFrame.Position = UDim2.new(0.3,0,0.3,0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
-mainFrame.BackgroundTransparency = 0.2
-mainFrame.Parent = ScreenGui
-
--- خاصية سحب الإطار
-local UIS = game:GetService("UserInputService")
-local dragging = false
-local dragStart, startPos
-
-mainFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then dragging = false end
-        end)
-    end
-end)
-mainFrame.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
-        local delta = input.Position - dragStart
-        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
--- عنوان المنيو
-local titleLabel = Instance.new("TextLabel", mainFrame)
-titleLabel.Size = UDim2.new(1,0,0,50)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "منيو محمد TN"
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextScaled = true
-titleLabel.TextColor3 = Color3.new(1,1,1)
-
--- إطار أزرار التبويبات
-local tabsFrame = Instance.new("Frame", mainFrame)
-tabsFrame.Size = UDim2.new(1,0,0,40)
-tabsFrame.Position = UDim2.new(0,0,0,50)
-tabsFrame.BackgroundTransparency = 1
-
--- إطار المحتوى
-local contentFrame = Instance.new("Frame", mainFrame)
-contentFrame.Size = UDim2.new(1,0,1,-90)
-contentFrame.Position = UDim2.new(0,0,0,90)
-contentFrame.BackgroundTransparency = 1
-
------------------------------------
--- إنشاء تبويبات ومحتوياتها
------------------------------------
-local currentTab = nil
-local tabButtons = {}
-local contentFrames = {}
-
-local function createTabButton(name, pos)
-    local btn = Instance.new("TextButton", tabsFrame)
-    btn.Size = UDim2.new(0,100,1,0)
-    btn.Position = UDim2.new(0, pos, 0, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    btn.Font = Enum.Font.Gotham
-    btn.TextScaled = true
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.Text = name
-    return btn
-end
-
-local function createContentFrame(name)
-    local frame = Instance.new("Frame", contentFrame)
-    frame.Name = name
-    frame.Size = UDim2.new(1,0,1,0)
-    frame.BackgroundTransparency = 1
-    frame.Visible = false
-    return frame
-end
-
-local tabNames = {"الرئيسية", "اللاعب", "أغراض تحكم", "سكربتات", "استهداف", "أغراض", "ألوان"}
-for i, name in ipairs(tabNames) do
-    tabButtons[name] = createTabButton(name, (i-1)*100)
-    contentFrames[name] = createContentFrame(name)
-    tabButtons[name].MouseButton1Click:Connect(function()
-        if currentTab then currentTab.Visible = false end
-        currentTab = contentFrames[name]
-        currentTab.Visible = true
-        for tname, tbtn in pairs(tabButtons) do
-            tbtn.BackgroundColor3 = (tname == name) and Color3.fromRGB(90,90,90) or Color3.fromRGB(70,70,70)
-        end
-    end)
-end
--- تحديد التبويب الافتراضي
-currentTab = contentFrames["الرئيسية"]
-currentTab.Visible = true
-tabButtons["الرئيسية"].BackgroundColor3 = Color3.fromRGB(90,90,90)
-
--- دوال مساعدة لإنشاء عناصر الواجهة
-local function createButton(parent, text, callback)
-    local btn = Instance.new("TextButton", parent)
-    btn.Size = UDim2.new(0,150,0,40)
-    btn.BackgroundColor3 = Color3.fromRGB(80,80,80)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextScaled = true
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.Text = text
-    btn.MouseButton1Click:Connect(callback)
-    return btn
-end
-
-local function createToggle(parent, text, callback)
-    local toggle = Instance.new("TextButton", parent)
-    toggle.Size = UDim2.new(0,150,0,40)
-    toggle.BackgroundColor3 = Color3.fromRGB(80,80,80)
-    toggle.Font = Enum.Font.GothamBold
-    toggle.TextScaled = true
-    toggle.TextColor3 = Color3.new(1,1,1)
-    local state = false
-    toggle.Text = text .. " : OFF"
-    toggle.MouseButton1Click:Connect(function()
-        state = not state
-        toggle.Text = text .. " : " .. (state and "ON" or "OFF")
-        callback(state)
-    end)
-    return toggle
-end
-
-local function createTextbox(parent, text, default, callback)
-    local container = Instance.new("Frame", parent)
-    container.Size = UDim2.new(0,320,0,30)
-    container.BackgroundTransparency = 1
-    
-    local label = Instance.new("TextLabel", container)
-    label.Size = UDim2.new(0,150,1,0)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.Gotham
-    label.TextScaled = true
-    label.TextColor3 = Color3.new(1,1,1)
-    label.Text = text
-    
-    local box = Instance.new("TextBox", container)
-    box.Size = UDim2.new(0,150,1,0)
-    box.Position = UDim2.new(0,160,0,0)
-    box.BackgroundColor3 = Color3.fromRGB(100,100,100)
-    box.Font = Enum.Font.Gotham
-    box.TextScaled = true
-    box.TextColor3 = Color3.new(1,1,1)
-    box.Text = default or ""
-    box.FocusLost:Connect(function(enterPressed)
-        callback(box.Text)
-    end)
-    
-    return container
-end
-
------------------------------------
--- محتويات تبويب "الرئيسية"
------------------------------------
-do
-    local cf = contentFrames["الرئيسية"]
-    local welcome = Instance.new("TextLabel", cf)
-    welcome.Size = UDim2.new(1,0,0,40)
-    welcome.Position = UDim2.new(0,0,0,10)
-    welcome.BackgroundTransparency = 1
-    welcome.Font = Enum.Font.GothamBold
-    welcome.TextScaled = true
-    welcome.TextColor3 = Color3.new(1,1,1)
-    welcome.Text = "مرحبا بكم في منيو محمد TN"
-end
-
------------------------------------
--- محتويات تبويب "اللاعب"
------------------------------------
-do
-    local cf = contentFrames["اللاعب"]
-    local y = 10
-    local tb1 = createTextbox(cf, "قوة القفز", tostring(jumpPower), function(val)
-        jumpPower = tonumber(val) or 150
+tabPlayer:AddTextbox({
+    Name = "قوة القفز",
+    Default = tostring(jumpPower),
+    ClearTextOnFocus = false,
+    Callback = function(v)
+        jumpPower = tonumber(v) or 150
         updateJumpPower()
-    end)
-    tb1.Position = UDim2.new(0,10,0,y)
-    y = y + 40
-    
-    local tb2 = createTextbox(cf, "سرعة المشي", tostring(walkSpeed), function(val)
-        walkSpeed = tonumber(val) or 50
+    end,
+})
+tabPlayer:AddTextbox({
+    Name = "سرعة المشي",
+    Default = tostring(walkSpeed),
+    ClearTextOnFocus = false,
+    Callback = function(v)
+        walkSpeed = tonumber(v) or 50
         updateWalkSpeed()
-    end)
-    tb2.Position = UDim2.new(0,10,0,y)
-    y = y + 40
-    
-    local tgl1 = createToggle(cf, "تفعيل القفز", function(state)
-        enableJump = state
+    end,
+})
+tabPlayer:AddToggle({
+    Name = "تفعيل القفز",
+    Default = false,
+    Callback = function(s)
+        enableJump = s
         updateJumpPower()
-    end)
-    tgl1.Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    
-    local tgl2 = createToggle(cf, "تفعيل السرعة", function(state)
-        enableSpeed = state
+    end,
+})
+tabPlayer:AddToggle({
+    Name = "تفعيل السرعة",
+    Default = false,
+    Callback = function(s)
+        enableSpeed = s
         updateWalkSpeed()
-    end)
-    tgl2.Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    
-    createButton(cf, "تنقل", function()
+    end,
+})
+tabPlayer:AddButton({
+    Name = "تنقل",
+    Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Mohakha1/-/refs/heads/main/Teleport.txt"))()
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    
-    createToggle(cf, "Noclip", function(state)
-        if state then
+    end,
+})
+local noclipConn
+tabPlayer:AddToggle({
+    Name = "Noclip",
+    Default = false,
+    Callback = function(s)
+        if s then
             noclipConn = RunService.Stepped:Connect(function()
-                if localPlayer.Character then
-                    for _, part in ipairs(localPlayer.Character:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.CanCollide = false
-                        end
+                for _, part in ipairs(localPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
                     end
                 end
             end)
         else
-            if noclipConn then noclipConn:Disconnect() end
+            if noclipConn then
+                noclipConn:Disconnect()
+            end
         end
-    end).Position = UDim2.new(0,10,0,y)
-end
+    end,
+})
 
------------------------------------
--- محتويات تبويب "أغراض تحكم"
------------------------------------
-do
-    local cf = contentFrames["أغراض تحكم"]
-    local y = 10
-    createToggle(cf, "إزالة لاق", function(state)
-        if state then
+-----------------------------------------------------------
+-- تبويب التحكم
+-----------------------------------------------------------
+local wallClimbConn
+tabControl:AddToggle({
+    Name = "إزالة لاق",
+    Default = false,
+    Callback = function(s)
+        if s then
             for _, v in ipairs(workspace:GetDescendants()) do
                 if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
                     v:Destroy()
                 end
             end
-            Notify("تنبيه", "تم إزالة اللّاق")
         end
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    
-    createToggle(cf, "تسلق جدران", function(state)
-        if state then
+    end,
+})
+tabControl:AddToggle({
+    Name = "تسلق جدران",
+    Default = false,
+    Callback = function(s)
+        if s then
             wallClimbConn = RunService.Heartbeat:Connect(function()
                 local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if hrp then
@@ -487,132 +330,152 @@ do
         else
             if wallClimbConn then wallClimbConn:Disconnect() end
         end
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    
-    createButton(cf, "اختفاء", function()
+    end,
+})
+tabControl:AddButton({
+    Name = "اختفاء",
+    Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/GGH52lan/GGH52lan/main/Invis.lua"))()
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    
-    createButton(cf, "طيران", function()
+    end,
+})
+tabControl:AddButton({
+    Name = "طيران",
+    Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Mohakha1/-/refs/heads/main/Protected_7047204136562154%20(1).txt"))()
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    
-    createButton(cf, "كشف الاقفال", function()
+    end,
+})
+tabControl:AddButton({
+    Name = "كشف الاقفال",
+    Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/Mohakha1/-/refs/heads/main/Tor.txt"))()
-    end).Position = UDim2.new(0,10,0,y)
-end
+    end,
+})
 
------------------------------------
--- محتويات تبويب "سكربتات"
------------------------------------
-do
-    local cf = contentFrames["سكربتات"]
-    local y = 10
-    createButton(cf, "ساندر اكس", function()
+-----------------------------------------------------------
+-- تبويب السكربتات
+-----------------------------------------------------------
+tabScripts:AddButton({
+    Name = "ساندر اكس",
+    Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/sXPiterXs1111/SanderXV2.65/main/sanderXNewV2.65.lua"))()
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    createButton(cf, "ايس هيب", function()
+    end,
+})
+tabScripts:AddButton({
+    Name = "ايس هيب",
+    Callback = function()
         loadstring(game:HttpGet("https://orbitsc.net/brook"))()
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    createButton(cf, "Project Script", function()
+    end,
+})
+tabScripts:AddButton({
+    Name = "Project Script",
+    Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/ProjectSunterium/Project-Sunterium/refs/heads/main/Project%20Sunterium"))()
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    createButton(cf, "Orbitsc", function()
+    end,
+})
+tabScripts:AddButton({
+    Name = "Orbitsc",
+    Callback = function()
         loadstring(game:HttpGet("https://orbitsc.net/brook"))()
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    createButton(cf, "Darkon", function()
+    end,
+})
+tabScripts:AddButton({
+    Name = "Darkon",
+    Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/TheDarkoneMarcillisePex/Other-Scripts/main/Brook%20Haven%20Gui"))()
-    end).Position = UDim2.new(0,10,0,y)
-end
+    end,
+})
 
------------------------------------
--- محتويات تبويب "استهداف"
------------------------------------
-do
-    local cf = contentFrames["استهداف"]
-    local y = 10
-    -- استخدم TextBox لكتابة اسم اللاعب
-    local targetBox = createTextbox(cf, "اسم اللاعب", "", function(val)
-        selectedName = val
+-----------------------------------------------------------
+-- تبويب الاستهداف
+-----------------------------------------------------------
+local dropdownInst, followConn, sitHeadConn, selectedName
+local function startFollow(name)
+    if followConn then followConn:Disconnect() end
+    followConn = RunService.Heartbeat:Connect(function()
+        local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local t = Players:FindFirstChild(name)
+        if hrp and t and t.Character then
+            local th = t.Character:FindFirstChild("HumanoidRootPart")
+            if th then
+                hrp.CFrame = th.CFrame + Vector3.new(0,3,0)
+            end
+        end
     end)
-    targetBox.Position = UDim2.new(0,10,0,y)
-    y = y + 40
-    createToggle(cf, "تتبع", function(state)
+end
+local function bang1(name)
+    local target = Players:FindFirstChild(name)
+    if not target then
+        OrionLib:MakeNotification({Name="خطأ", Content="لاعب غير موجود", Time=5})
+        return
+    end
+    local targetChar = target.Character or target.CharacterAdded:Wait()
+    local targetHead = targetChar:WaitForChild("Head")
+    local myChar = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+    local hrp = myChar:WaitForChild("HumanoidRootPart")
+    local humanoid = myChar:WaitForChild("Humanoid")
+    humanoid.Sit = true
+    hrp.CFrame = CFrame.new(targetHead.Position + Vector3.new(0, 2.1, -0.5))
+    for _, v in ipairs(hrp:GetChildren()) do
+        if v:IsA("Attachment") or v:IsA("AlignPosition") or v:IsA("AlignOrientation") then
+            v:Destroy()
+        end
+    end
+    local myAttach = Instance.new("Attachment", hrp)
+    local headAttach = Instance.new("Attachment", targetHead)
+    local alignPos = Instance.new("AlignPosition", hrp)
+    alignPos.Attachment0 = myAttach
+    alignPos.Attachment1 = headAttach
+    alignPos.RigidityEnabled = true
+    alignPos.Responsiveness = 200
+    alignPos.MaxForce = math.huge
+    local alignOri = Instance.new("AlignOrientation", hrp)
+    alignOri.Attachment0 = myAttach
+    alignOri.Attachment1 = headAttach
+    alignOri.RigidityEnabled = true
+    alignOri.Responsiveness = 200
+    alignOri.MaxTorque = math.huge
+    local t = 0
+    if sitHeadConn then sitHeadConn:Disconnect() end
+    sitHeadConn = RunService.RenderStepped:Connect(function(dt)
+        t = t + dt
+        local sway = math.sin(t * 20) * 0.3
+        myAttach.Position = Vector3.new(0, 2.1, -0.5 + sway)
+    end)
+    OrionLib:MakeNotification({Name="تم التفعيل", Content="bang1 مفعل على: " .. name, Time=5})
+end
+dropdownInst = tabTarget:AddDropdown({
+    Name = "اختر لاعب",
+    Default = "",
+    Options = {},
+    Callback= function(v)
+        selectedName = v
+    end,
+})
+tabTarget:AddToggle({
+    Name = "تتبع",
+    Default = false,
+    Callback= function(state)
         if state then
-            if not selectedName or selectedName == "" then
-                Notify("خطأ", "اختر لاعب أولاً!")
+            if not selectedName then
+                OrionLib:MakeNotification({Name="خطأ", Content="اختر لاعب أولاً!", Time=5})
                 return
             end
-            if followConn then followConn:Disconnect() end
-            followConn = RunService.Heartbeat:Connect(function()
-                local hrp = localPlayer.Character and localPlayer.Character:FindFirstChild("HumanoidRootPart")
-                local t = Players:FindFirstChild(selectedName)
-                if hrp and t and t.Character then
-                    local th = t.Character:FindFirstChild("HumanoidRootPart")
-                    if th then hrp.CFrame = th.CFrame + Vector3.new(0,3,0) end
-                end
-            end)
-            Notify("تنبيه", "تتبع مفعل")
+            startFollow(selectedName)
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="تتبع مفعل", Time=5})
         else
             if followConn then followConn:Disconnect() end
-            Notify("تنبيه", "تتبع مُعطّل")
+            OrionLib:MakeNotification({Name="تم الإيقاف", Content="تتبع مُعطّل", Time=5})
         end
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    createToggle(cf, "bang1", function(state)
+    end,
+})
+tabTarget:AddToggle({
+    Name = "bang1",
+    Default = false,
+    Callback= function(state)
         if state then
-            if not selectedName or selectedName == "" then
-                Notify("خطأ", "اختر لاعب أولاً!")
+            if not selectedName then
+                OrionLib:MakeNotification({Name="خطأ", Content="اختر لاعب أولاً!", Time=5})
                 return
-            end
-            -- تفعيل وظيفة bang1
-            local function bang1(name)
-                local target = Players:FindFirstChild(name)
-                if not target then
-                    Notify("خطأ", "لاعب غير موجود")
-                    return
-                end
-                local targetChar = target.Character or target.CharacterAdded:Wait()
-                local targetHead = targetChar:WaitForChild("Head")
-                local myChar = localPlayer.Character or localPlayer.CharacterAdded:Wait()
-                local hrp = myChar:WaitForChild("HumanoidRootPart")
-                local humanoid = myChar:WaitForChild("Humanoid")
-                humanoid.Sit = true
-                hrp.CFrame = CFrame.new(targetHead.Position + Vector3.new(0,2.1,-0.5))
-                for _, v in ipairs(hrp:GetChildren()) do
-                    if v:IsA("Attachment") or v:IsA("AlignPosition") or v:IsA("AlignOrientation") then
-                        v:Destroy()
-                    end
-                end
-                local myAttach = Instance.new("Attachment", hrp)
-                local headAttach = Instance.new("Attachment", targetHead)
-                local alignPos = Instance.new("AlignPosition", hrp)
-                alignPos.Attachment0 = myAttach
-                alignPos.Attachment1 = headAttach
-                alignPos.RigidityEnabled = true
-                alignPos.Responsiveness = 200
-                alignPos.MaxForce = math.huge
-                local alignOri = Instance.new("AlignOrientation", hrp)
-                alignOri.Attachment0 = myAttach
-                alignOri.Attachment1 = headAttach
-                alignOri.RigidityEnabled = true
-                alignOri.Responsiveness = 200
-                alignOri.MaxTorque = math.huge
-                local t = 0
-                if sitHeadConn then sitHeadConn:Disconnect() end
-                sitHeadConn = RunService.RenderStepped:Connect(function(dt)
-                    t = t + dt
-                    local sway = math.sin(t * 20) * 0.3
-                    myAttach.Position = Vector3.new(0,2.1,-0.5 + sway)
-                end)
-                Notify("تنبيه", "bang1 مفعل على: " .. name)
             end
             bang1(selectedName)
         else
@@ -630,220 +493,378 @@ do
                     end
                 end
             end
-            Notify("تنبيه", "bang1 مُعطّل")
+            OrionLib:MakeNotification({Name="تم الإيقاف", Content="bang1 مُعطّل", Time=5})
         end
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    createButton(cf, "قتل بالباص", function()
-        if not selectedName or selectedName == "" then
-            Notify("خطأ", "اختر لاعب أولاً!")
-            return
+    end,
+})
+local function busKill()
+    if not selectedName then
+        OrionLib:MakeNotification({Name="خطأ", Content="اختر لاعب أولاً!", Time=5})
+        return
+    end
+    local player = game.Players.LocalPlayer
+    local target = game.Players:FindFirstChild(selectedName)
+    if not target then
+        OrionLib:MakeNotification({Name="خطأ", Content="لاعب غير موجود", Time=5})
+        return
+    end
+    local localChar = player.Character or player.CharacterAdded:Wait()
+    local hrp = localChar:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        OrionLib:MakeNotification({Name="خطأ", Content="لا يوجد HumanoidRootPart", Time=5})
+        return
+    end
+    local originalCFrame = hrp.CFrame
+    local firstCFrame = CFrame.new(1039.02393, 78.6514969, -1034.72437, -0.549868405, 0.0108198766, -0.835181236, -8.43425005e-05, 0.999915361, 0.0130095575, 0.835251272, 0.00722398562, -0.54982096)
+    local secondCFrame = CFrame.new(1051.32434, 78.612854, -1038.99731, 0.82696569, 0.00431149732, -0.562235892, 0.00424380461, 0.999894261, 0.0139096817, 0.562236369, -0.0138888489, 0.826859951)
+    hrp.CFrame = firstCFrame
+    task.wait(0.5)
+    local remote = game:GetService("ReplicatedStorage"):FindFirstChild("RE"):FindFirstChild("1Ca1r")
+    if remote then
+        remote:FireServer("PickingCar", "SchoolBus")
+    end
+    task.wait(1.5)
+    hrp.CFrame = secondCFrame
+    task.wait(0.2)
+    local targetHRP = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+    if targetHRP then
+        local startTime = tick()
+        while tick() - startTime < 3 do
+            local angle = (tick() - startTime) * 20
+            local radius = 5
+            local offset = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
+            hrp.CFrame = CFrame.new(targetHRP.Position + offset) * CFrame.Angles(0, math.rad(angle * 60), 0)
+            task.wait()
         end
-        local player = localPlayer
-        local target = Players:FindFirstChild(selectedName)
-        if not target then
-            Notify("خطأ", "لاعب غير موجود")
-            return
-        end
-        local char = player.Character or player.CharacterAdded:Wait()
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then
-            Notify("خطأ", "لا يوجد HumanoidRootPart")
-            return
-        end
-        local originalCFrame = hrp.CFrame
-        local firstCFrame = CFrame.new(1039.02393, 78.6514969, -1034.72437,
-                -0.549868405, 0.0108198766, -0.835181236,
-                -8.43425005e-05, 0.999915361, 0.0130095575,
-                0.835251272, 0.00722398562, -0.54982096)
-        local secondCFrame = CFrame.new(1051.32434, 78.612854, -1038.99731,
-                0.82696569, 0.00431149732, -0.562235892,
-                0.00424380461, 0.999894261, 0.0139096817,
-                0.562236369, -0.0138888489, 0.826859951)
-        hrp.CFrame = firstCFrame
-        wait(0.5)
-        local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1Ca1r")
-        if remote then remote:FireServer("PickingCar", "SchoolBus") end
-        wait(1.5)
-        hrp.CFrame = secondCFrame
-        wait(0.2)
-        local targetHRP = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
-        if targetHRP then
-            local startTime = tick()
-            while tick() - startTime < 3 do
-                local angle = (tick() - startTime) * 20
-                local radius = 5
-                local offset = Vector3.new(math.cos(angle)*radius, 0, math.sin(angle)*radius)
-                hrp.CFrame = CFrame.new(targetHRP.Position + offset) * CFrame.Angles(0, math.rad(angle*60), 0)
-                wait()
-            end
-        end
-        hrp.CFrame = CFrame.new(hrp.Position.X, -100, hrp.Position.Z)
-        wait(0.05)
-        local deleteArgs = { "DeleteAllVehicles" }
-        local deleteRemote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1Ca1r")
-        if deleteRemote then deleteRemote:FireServer(unpack(deleteArgs)) end
-        wait(0.1)
-        hrp.CFrame = originalCFrame
-    end).Position = UDim2.new(0,10,0,y)
+    end
+    hrp.CFrame = CFrame.new(hrp.Position.X, -100, hrp.Position.Z)
+    task.wait(0.05)
+    local deleteArgs = { [1] = "DeleteAllVehicles" }
+    local deleteRemote = game:GetService("ReplicatedStorage").RE:FindFirstChild("1Ca1r")
+    if deleteRemote then
+        deleteRemote:FireServer(unpack(deleteArgs))
+    end
+    task.wait(0.1)
+    hrp.CFrame = originalCFrame
 end
+tabTarget:AddButton({
+    Name = "قتل بالباص",
+    Callback = busKill,
+})
 
------------------------------------
--- محتويات تبويب "أغراض"
------------------------------------
-do
-    local cf = contentFrames["أغراض"]
-    local y = 10
-    createButton(cf, "حقيبة النار", function()
-        local args = { "PickingTools", "PaperbagFire" }
-        local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1Too1l")
-        if remote then remote:InvokeServer(unpack(args)) end
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    createButton(cf, "كريستال 1", function()
-        local args = { "PickingTools", "Crystals" }
-        local remote = ReplicatedStorage.RE and ReplicatedStorage.RE:FindFirstChild("1Too1l")
-        if remote then remote:InvokeServer(unpack(args)) end
-    end).Position = UDim2.new(0,10,0,y)
-end
+-----------------------------------------------------------
+-- تبويب أغراض
+-----------------------------------------------------------
+tabItems:AddButton({
+    Name = "حقيبة النار",
+    Callback= function()
+        local args = { [1] = "PickingTools", [2] = "PaperbagFire" }
+        ReplicatedStorage.RE:FindFirstChild("1Too1l"):InvokeServer(unpack(args))
+    end,
+})
+tabItems:AddButton({
+    Name = "كريستال 1",
+    Callback= function()
+        local args = { [1] = "PickingTools", [2] = "Crystals" }
+        ReplicatedStorage.RE:FindFirstChild("1Too1l"):InvokeServer(unpack(args))
+    end,
+})
 
------------------------------------
--- محتويات تبويب "ألوان"
------------------------------------
-do
-    local cf = contentFrames["ألوان"]
-    local y = 10
-    local sec1 = Instance.new("TextLabel", cf)
-    sec1.Size = UDim2.new(0,200,0,30)
-    sec1.Position = UDim2.new(0,10,0,y)
-    sec1.BackgroundTransparency = 1
-    sec1.Font = Enum.Font.GothamBold
-    sec1.TextScaled = true
-    sec1.TextColor3 = Color3.new(1,1,1)
-    sec1.Text = "الاسم"
-    y = y + 40
-    
-    createToggle(cf, "تدرج لون الاسم", function(state)
+-----------------------------------------------------------
+-- تبويب الألوان
+-----------------------------------------------------------
+-- قسم الاسم
+tabColors:AddSection({ Name = "الاسم" })
+tabColors:AddToggle({
+    Name = "تدرج لون الاسم",
+    Default = false,
+    Callback= function(state)
         if state then
             stopBlink()
             stopWave()
             startGradient()
-            Notify("تنبيه", "تدرج لون الاسم مفعل")
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="تدرج لون الاسم مفعل", Time=5})
         else
             stopGradient()
         end
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    
-    createToggle(cf, "وميض لون الاسم", function(state)
+    end,
+})
+tabColors:AddToggle({
+    Name = "وميض لون الاسم",
+    Default = false,
+    Callback= function(state)
         if state then
             stopGradient()
             stopWave()
             startBlink()
-            Notify("تنبيه", "وميض لون الاسم مفعل")
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="وميض لون الاسم مفعل", Time=5})
         else
             stopBlink()
         end
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    
-    createToggle(cf, "موجة لون الاسم", function(state)
+    end,
+})
+tabColors:AddToggle({
+    Name = "موجة لون الاسم",
+    Default = false,
+    Callback= function(state)
         if state then
             stopGradient()
             stopBlink()
             startWave()
-            Notify("تنبيه", "موجة لون الاسم مفعل")
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="موجة لون الاسم مفعل", Time=5})
         else
             stopWave()
         end
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 60
-    
-    local sec2 = Instance.new("TextLabel", cf)
-    sec2.Size = UDim2.new(0,200,0,30)
-    sec2.Position = UDim2.new(0,10,0,y)
-    sec2.BackgroundTransparency = 1
-    sec2.Font = Enum.Font.GothamBold
-    sec2.TextScaled = true
-    sec2.TextColor3 = Color3.new(1,1,1)
-    sec2.Text = "البايو"
-    y = y + 40
-    
-    createToggle(cf, "تدرج لون البايو", function(state)
+    end,
+})
+-- قسم البايو
+tabColors:AddSection({ Name = "البايو" })
+tabColors:AddToggle({
+    Name = "تدرج لون البايو",
+    Default = false,
+    Callback= function(state)
         if state then
             stopBlinkBio()
             stopWaveBio()
             startGradientBio()
-            Notify("تنبيه", "تدرج لون البايو مفعل")
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="تدرج لون البايو مفعل", Time=5})
         else
             stopGradientBio()
         end
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    
-    createToggle(cf, "وميض لون البايو", function(state)
+    end,
+})
+tabColors:AddToggle({
+    Name = "وميض لون البايو",
+    Default = false,
+    Callback= function(state)
         if state then
             stopGradientBio()
             stopWaveBio()
             startBlinkBio()
-            Notify("تنبيه", "وميض لون البايو مفعل")
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="وميض لون البايو مفعل", Time=5})
         else
             stopBlinkBio()
         end
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 50
-    
-    createToggle(cf, "موجة لون البايو", function(state)
+    end,
+})
+tabColors:AddToggle({
+    Name = "موجة لون البايو",
+    Default = false,
+    Callback= function(state)
         if state then
             stopGradientBio()
             stopBlinkBio()
             startWaveBio()
-            Notify("تنبيه", "موجة لون البايو مفعل")
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="موجة لون البايو مفعل", Time=5})
         else
             stopWaveBio()
         end
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 60
-    
-    local sec3 = Instance.new("TextLabel", cf)
-    sec3.Size = UDim2.new(0,200,0,30)
-    sec3.Position = UDim2.new(0,10,0,y)
-    sec3.BackgroundTransparency = 1
-    sec3.Font = Enum.Font.GothamBold
-    sec3.TextScaled = true
-    sec3.TextColor3 = Color3.new(1,1,1)
-    sec3.Text = "الافتار"
-    y = y + 40
-    
-    createToggle(cf, "تغيير لون الافاتار تلقائي", function(state)
+    end,
+})
+-- قسم الافاتار
+tabColors:AddSection({ Name = "الافتار" })
+local avatarColorRunning = false
+local function startAvatarColors()
+    if avatarColorRunning then return end
+    avatarColorRunning = true
+    task.spawn(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local Remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("ChangeBodyColor")
+        local avatarColors = {
+            "Bright yellow", "New Yeller", "Gold", "Deep orange", "Nougat", "Bronze", "Cork",
+            "Burnt Sienna", "Dusty Rose", "Medium red", "Terra Cotta", "Bright red", "Hot pink",
+            "Magenta", "Pink", "Pastel violet", "Salmon", "Light red", "Royal purple", "Navy blue",
+            "Bright blue", "Electric blue", "Toothpaste", "Pastel Blue", "Bright bluish green",
+            "Bright green", "Lime green", "Shamrock", "Pastel green", "Olive", "Grime",
+            "Bright yellowish green", "Buttermilk", "Peach", "Dark taupe", "Black", "Smoky grey",
+            "Dark stone grey", "Really black", "Mid grey", "Pastel brown", "Light grey", "Institutional white",
+            "Mulberry", "Lavender", "Royal indigo", "Purple", "Navy blue", "Bright blue"
+        }
+        while avatarColorRunning do
+            for _, color in ipairs(avatarColors) do
+                if not avatarColorRunning then break end
+                Remote:FireServer(color)
+                wait(1) -- لتعديل سرعة التبديل غيّر العدد هنا (مثلاً 0.5 لتسريع أو 2 لتأخير)
+            end
+        end
+    end)
+end
+local function stopAvatarColors()
+    avatarColorRunning = false
+end
+tabColors:AddToggle({
+    Name = "تغيير لون الافاتار تلقائي",
+    Default = false,
+    Callback = function(state)
         if state then
             startAvatarColors()
-            Notify("تنبيه", "تغيير لون الافاتار التلقائي مفعل")
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="تغيير لون الافاتار التلقائي مفعل", Time=5})
         else
             stopAvatarColors()
-            Notify("تنبيه", "تغيير لون الافاتار التلقائي معطل")
+            OrionLib:MakeNotification({Name="تم الإيقاف", Content="تغيير لون الافاتار التلقائي معطل", Time=5})
         end
-    end).Position = UDim2.new(0,10,0,y)
-    y = y + 60
-    
-    local sec4 = Instance.new("TextLabel", cf)
-    sec4.Size = UDim2.new(0,200,0,30)
-    sec4.Position = UDim2.new(0,10,0,y)
-    sec4.BackgroundTransparency = 1
-    sec4.Font = Enum.Font.GothamBold
-    sec4.TextScaled = true
-    sec4.TextColor3 = Color3.new(1,1,1)
-    sec4.Text = "السياره"
-    y = y + 40
-    
-    local sec5 = Instance.new("TextLabel", cf)
-    sec5.Size = UDim2.new(0,200,0,30)
-    sec5.Position = UDim2.new(0,10,0,y)
-    sec5.BackgroundTransparency = 1
-    sec5.Font = Enum.Font.GothamBold
-    sec5.TextScaled = true
-    sec5.TextColor3 = Color3.new(1,1,1)
-    sec5.Text = "المنزل"
+    end,
+})
+-- قسم السياره
+tabColors:AddSection({ Name = "السياره" })
+local carColorRunning = false
+local function startCarColors()
+    if carColorRunning then return end
+    carColorRunning = true
+    task.spawn(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local Remote = ReplicatedStorage.RE:FindFirstChild("1Player1sCa1r")
+        local carColors = {}
+        for i = 1, 1000 do
+            local r = math.random(0, 255)
+            local g = math.random(0, 255)
+            local b = math.random(0, 255)
+            table.insert(carColors, Color3.fromRGB(r, g, b))
+        end
+        local function shuffle(tbl)
+            for i = #tbl, 2, -1 do
+                local j = math.random(1, i)
+                tbl[i], tbl[j] = tbl[j], tbl[i]
+            end
+        end
+        shuffle(carColors)
+        while carColorRunning do
+            for _, color in ipairs(carColors) do
+                if not carColorRunning then break end
+                local success, err = pcall(function()
+                    Remote:FireServer("PickingCarColor", color)
+                end)
+                if not success then
+                    warn("Error while sending color:", err)
+                end
+                wait(math.random(2, 6) / 10) -- عدل هذه القيمة لتحديد سرعة تبديل ألوان السيارة
+            end
+        end
+    end)
 end
+local function stopCarColors()
+    carColorRunning = false
+end
+tabColors:AddToggle({
+    Name = "تغيير لون السيارة تلقائيًا",
+    Default = false,
+    Callback = function(state)
+        if state then
+            startCarColors()
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="تم تفعيل تغيير لون السيارة تلقائيًا", Time=5})
+        else
+            stopCarColors()
+            OrionLib:MakeNotification({Name="تم الإيقاف", Content="تم تعطيل تغيير لون السيارة تلقائيًا", Time=5})
+        end
+    end,
+})
+-- قسم المنزل
+tabColors:AddSection({ Name = "المنزل" })
+local houseColorRunning = false
+local function startHouseColors()
+    if houseColorRunning then return end
+    houseColorRunning = true
+    task.spawn(function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local remoteHouse = ReplicatedStorage.RE:FindFirstChild("1Player1sHous1e")
+        local houseColors = {
+            Color3.fromRGB(255, 0, 0),
+            Color3.fromRGB(0, 255, 0),
+            Color3.fromRGB(0, 0, 255),
+            Color3.fromRGB(255, 255, 0),
+            Color3.fromRGB(255, 0, 255),
+            Color3.fromRGB(0, 255, 255),
+            Color3.fromRGB(128, 0, 0),
+            Color3.fromRGB(0, 128, 0),
+            Color3.fromRGB(0, 0, 128),
+            Color3.fromRGB(255, 165, 0),
+            Color3.fromRGB(75, 0, 130),
+            Color3.fromRGB(255, 192, 203),
+            Color3.fromRGB(139, 69, 19),
+            Color3.fromRGB(173, 216, 230),
+            Color3.fromRGB(0, 100, 0),
+            Color3.fromRGB(255, 105, 180),
+            Color3.fromRGB(186, 85, 211),
+            Color3.fromRGB(240, 230, 140),
+            Color3.fromRGB(100, 149, 237),
+            Color3.fromRGB(123, 104, 238),
+            Color3.fromRGB(255, 222, 173),
+            Color3.fromRGB(255, 250, 250),
+            Color3.fromRGB(70, 130, 180),
+            Color3.fromRGB(135, 206, 250),
+            Color3.fromRGB(250, 128, 114),
+            Color3.fromRGB(210, 105, 30),
+            Color3.fromRGB(60, 179, 113),
+            Color3.fromRGB(47, 79, 79),
+            Color3.fromRGB(106, 90, 205),
+            Color3.fromRGB(199, 21, 133),
+            Color3.fromRGB(255, 239, 213),
+            Color3.fromRGB(152, 251, 152),
+            Color3.fromRGB(255, 20, 147),
+            Color3.fromRGB(245, 222, 179),
+            Color3.fromRGB(105, 105, 105),
+            Color3.fromRGB(255, 228, 225),
+            Color3.fromRGB(255, 248, 220),
+            Color3.fromRGB(219, 112, 147),
+            Color3.fromRGB(216, 191, 216),
+            Color3.fromRGB(32, 178, 170),
+            Color3.fromRGB(72, 61, 139),
+            Color3.fromRGB(176, 196, 222),
+            Color3.fromRGB(245, 245, 245),
+            Color3.fromRGB(255, 228, 181),
+            Color3.fromRGB(255, 160, 122),
+            Color3.fromRGB(127, 255, 212),
+            Color3.fromRGB(255, 99, 71),
+            Color3.fromRGB(240, 128, 128),
+            Color3.fromRGB(135, 206, 235),
+            Color3.fromRGB(205, 133, 63)
+        }
+        while houseColorRunning do
+            for _, color in ipairs(houseColors) do
+                if not houseColorRunning then break end
+                local args = { [1] = "ColorPickHouse", [2] = color }
+                local success, err = pcall(function()
+                    remoteHouse:FireServer(unpack(args))
+                end)
+                if not success then
+                    warn("خطأ أثناء إرسال اللون:", err)
+                end
+                wait(0.5) -- تقدر تخليها أبطأ لو استمر الطرد
+            end
+        end
+    end)
+end
+local function stopHouseColors()
+    houseColorRunning = false
+end
+tabColors:AddToggle({
+    Name = "تغيير لون المنزل تلقائي",
+    Default = false,
+    Callback = function(state)
+        if state then
+            startHouseColors()
+            OrionLib:MakeNotification({Name="تم التفعيل", Content="تغيير لون المنزل تلقائي مفعل", Time=5})
+        else
+            stopHouseColors()
+            OrionLib:MakeNotification({Name="تم الإيقاف", Content="تغيير لون المنزل تلقائي معطل", Time=5})
+        end
+    end,
+})
 
--- نهاية السكربت
+-----------------------------------------------------------
+-- تحديث قائمة اللاعبين في تبويب الاستهداف كل 5 ثواني
+-----------------------------------------------------------
+task.spawn(function()
+    while true do
+        local list = {}
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Name ~= localPlayer.Name then
+                table.insert(list, p.Name)
+            end
+        end
+        if dropdownInst then
+            dropdownInst:Refresh(list, true)
+        end
+        task.wait(5)
+    end
+end)
