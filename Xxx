@@ -53,7 +53,7 @@ local function startGradient()
             for i = 0, 1, 0.05 do
                 if not gradientRunning then return end
                 local blended = blendColors(c1, c2, i)
-                ReplicatedStorage.RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPNameColor", blended)
+               .RE:FindFirstChild("1RPNam1eColo1r"):FireServer("PickingRPNameColor", blended)
                 wait(0.25)
             end
             idx = idx + 1
@@ -62,6 +62,7 @@ local function startGradient()
         end
     end)
 end
+
 local function stopGradient()
     gradientRunning = false
 end
@@ -80,6 +81,7 @@ local function startBlink()
         end
     end)
 end
+
 local function stopBlink()
     blinkRunning = false
 end
@@ -98,6 +100,7 @@ local function startWave()
         end
     end)
 end
+
 local function stopWave()
     waveRunning = false
 end
@@ -132,6 +135,7 @@ local function startGradientBio()
         end
     end)
 end
+
 local function stopGradientBio()
     gradientBioRunning = false
 end
@@ -150,6 +154,7 @@ local function startBlinkBio()
         end
     end)
 end
+
 local function stopBlinkBio()
     blinkBioRunning = false
 end
@@ -168,6 +173,7 @@ local function startWaveBio()
         end
     end)
 end
+
 local function stopWaveBio()
     waveBioRunning = false
 end
@@ -190,51 +196,23 @@ local tabScripts = Window:MakeTab({ Name = "سكربتات", Icon = "🧩" })
 local tabTarget = Window:MakeTab({ Name = "استهداف", Icon = "🎯" })
 local tabItems = Window:MakeTab({ Name = "أغراض", Icon = "🎒" })
 local tabColors = Window:MakeTab({ Name = "الوان", Icon = "🎨" })
--- إضافة تبويب "سكنات جاهزة"
-local tabSkins = Window:MakeTab({ Name = "سكنات جاهزة", Icon = "🎭" })
-
------------------------------------------------------------
--- محتوى تبويب "سكنات جاهزة"
------------------------------------------------------------
-local skins = {
-    { Name = "سكن 1", ID = 63690008 },
-    { Name = "سكن 2", ID = 144076358 },
-    { Name = "سكن 3", ID = 144076760 },
-    { Name = "سكن 4", ID = 144075659 },
-    { Name = "سكن 5", ID = 11863491827 },
-    { Name = "سكن 6", ID = 17156568103 },
-    { Name = "سكن 7", ID = 7699174 },
-    { Name = "سكن 8", ID = 17744851762 },
-    { Name = "سكن 9", ID = 10789933479 },
-    { Name = "سكن 10", ID = 16266331263 },
-    { Name = "سكن 11", ID = 17274655265 },
-    { Name = "سكن 12", ID = 14475326317 },
-    { Name = "سكن 13", ID = 14388004031 },
-    { Name = "سكن 14", ID = 18538150608 },
-}
-
-for _, skin in ipairs(skins) do
-    tabSkins:AddButton({
-        Name = skin.Name,
-        Callback = function()
-            game:GetService("ReplicatedStorage").Remotes.Wear:InvokeServer(skin.ID)
-        end,
-    })
-end
 
 -----------------------------------------------------------
 -- تبويب اللاعب
 -----------------------------------------------------------
 local jumpPower, walkSpeed = 150, 50
 local enableJump, enableSpeed = false, false
-local function()
+
+local function updateJumpPower()
     local h = localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid")
     if h then h.JumpPower = enableJump and jumpPower or 50 end
 end
+
 local function updateWalkSpeed()
     local h = localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid")
     if h then h.WalkSpeed = enableSpeed and walkSpeed or 16 end
 end
+
 tabPlayer:AddTextbox({
     Name = "قوة القفز",
     Default = tostring(jumpPower),
@@ -283,15 +261,11 @@ tabPlayer:AddToggle({
         if s then
             noclipConn = RunService.Stepped:Connect(function()
                 for _, part in ipairs(localPlayer.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
+                    if part:IsA("BasePart") then part.CanCollide = false end
                 end
             end)
         else
-            if noclipConn then
-                noclipConn:Disconnect()
-            end
+            if noclipConn then noclipConn:Disconnect() end
         end
     end,
 })
@@ -396,12 +370,11 @@ local function startFollow(name)
         local t = Players:FindFirstChild(name)
         if hrp and t and t.Character then
             local th = t.Character:FindFirstChild("HumanoidRootPart")
-            if th then
-                hrp.CFrame = th.CFrame + Vector3.new(0,3,0)
-            end
+            if th then hrp.CFrame = th.CFrame + Vector3.new(0,3,0) end
         end
     end)
 end
+
 local function bang1(name)
     local target = Players:FindFirstChild(name)
     if not target then
@@ -443,13 +416,12 @@ local function bang1(name)
     end)
     OrionLib:MakeNotification({Name="تم التفعيل", Content="bang1 مفعل على: " .. name, Time=5})
 end
+
 dropdownInst = tabTarget:AddDropdown({
     Name = "اختر لاعب",
     Default = "",
     Options = {},
-    Callback= function(v)
-        selectedName = v
-    end,
+    Callback= function(v) selectedName = v end,
 })
 tabTarget:AddToggle({
     Name = "تتبع",
@@ -497,6 +469,7 @@ tabTarget:AddToggle({
         end
     end,
 })
+-- زر "قتل بالباص" في تبويب الاستهداف
 local function busKill()
     if not selectedName then
         OrionLib:MakeNotification({Name="خطأ", Content="اختر لاعب أولاً!", Time=5})
@@ -520,9 +493,7 @@ local function busKill()
     hrp.CFrame = firstCFrame
     task.wait(0.5)
     local remote = game:GetService("ReplicatedStorage"):FindFirstChild("RE"):FindFirstChild("1Ca1r")
-    if remote then
-        remote:FireServer("PickingCar", "SchoolBus")
-    end
+    if remote then remote:FireServer("PickingCar", "SchoolBus") end
     task.wait(1.5)
     hrp.CFrame = secondCFrame
     task.wait(0.2)
@@ -541,9 +512,7 @@ local function busKill()
     task.wait(0.05)
     local deleteArgs = { [1] = "DeleteAllVehicles" }
     local deleteRemote = game:GetService("ReplicatedStorage").RE:FindFirstChild("1Ca1r")
-    if deleteRemote then
-        deleteRemote:FireServer(unpack(deleteArgs))
-    end
+    if deleteRemote then deleteRemote:FireServer(unpack(deleteArgs)) end
     task.wait(0.1)
     hrp.CFrame = originalCFrame
 end
@@ -684,7 +653,7 @@ local function startAvatarColors()
             for _, color in ipairs(avatarColors) do
                 if not avatarColorRunning then break end
                 Remote:FireServer(color)
-                wait(1) -- لتعديل سرعة التبديل غيّر العدد هنا (مثلاً 0.5 لتسريع أو 2 لتأخير)
+                wait(1)
             end
         end
     end)
@@ -737,7 +706,7 @@ local function startCarColors()
                 if not success then
                     warn("Error while sending color:", err)
                 end
-                wait(math.random(2, 6) / 10) -- عدل هذه القيمة لتحديد سرعة تبديل ألوان السيارة
+                wait(math.random(2, 6) / 10)
             end
         end
     end)
@@ -768,68 +737,41 @@ local function startHouseColors()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
         local remoteHouse = ReplicatedStorage.RE:FindFirstChild("1Player1sHous1e")
         local houseColors = {
-            Color3.fromRGB(255, 0, 0),
-            Color3.fromRGB(0, 255, 0),
-            Color3.fromRGB(0, 0, 255),
-            Color3.fromRGB(255, 255, 0),
-            Color3.fromRGB(255, 0, 255),
-            Color3.fromRGB(0, 255, 255),
-            Color3.fromRGB(128, 0, 0),
-            Color3.fromRGB(0, 128, 0),
-            Color3.fromRGB(0, 0, 128),
-            Color3.fromRGB(255, 165, 0),
-            Color3.fromRGB(75, 0, 130),
-            Color3.fromRGB(255, 192, 203),
-            Color3.fromRGB(139, 69, 19),
-            Color3.fromRGB(173, 216, 230),
-            Color3.fromRGB(0, 100, 0),
-            Color3.fromRGB(255, 105, 180),
-            Color3.fromRGB(186, 85, 211),
-            Color3.fromRGB(240, 230, 140),
-            Color3.fromRGB(100, 149, 237),
-            Color3.fromRGB(123, 104, 238),
-            Color3.fromRGB(255, 222, 173),
-            Color3.fromRGB(255, 250, 250),
-            Color3.fromRGB(70, 130, 180),
-            Color3.fromRGB(135, 206, 250),
-            Color3.fromRGB(250, 128, 114),
-            Color3.fromRGB(210, 105, 30),
-            Color3.fromRGB(60, 179, 113),
-            Color3.fromRGB(47, 79, 79),
-            Color3.fromRGB(106, 90, 205),
-            Color3.fromRGB(199, 21, 133),
-            Color3.fromRGB(255, 239, 213),
-            Color3.fromRGB(152, 251, 152),
-            Color3.fromRGB(255, 20, 147),
-            Color3.fromRGB(245, 222, 179),
-            Color3.fromRGB(105, 105, 105),
-            Color3.fromRGB(255, 228, 225),
-            Color3.fromRGB(255, 248, 220),
-            Color3.fromRGB(219, 112, 147),
-            Color3.fromRGB(216, 191, 216),
-            Color3.fromRGB(32, 178, 170),
-            Color3.fromRGB(72, 61, 139),
-            Color3.fromRGB(176, 196, 222),
-            Color3.fromRGB(245, 245, 245),
-            Color3.fromRGB(255, 228, 181),
-            Color3.fromRGB(255, 160, 122),
-            Color3.fromRGB(127, 255, 212),
-            Color3.fromRGB(255, 99, 71),
-            Color3.fromRGB(240, 128, 128),
-            Color3.fromRGB(135, 206, 235),
-            Color3.fromRGB(205, 133, 63)
+            Color3.fromRGB(255, 0, 0), Color3.fromRGB(0, 255, 0),
+            Color3.fromRGB(0, 0, 255), Color3.fromRGB(255, 255, 0),
+            Color3.fromRGB(255, 0, 255), Color3.fromRGB(0, 255, 255),
+            Color3.fromRGB(128, 0, 0), Color3.fromRGB(0, 128, 0),
+            Color3.fromRGB(0, 0, 128), Color3.fromRGB(255, 165, 0),
+            Color3.fromRGB(75, 0, 130), Color3.fromRGB(255, 192, 203),
+            Color3.fromRGB(139, 69, 19), Color3.fromRGB(173, 216, 230),
+            Color3.fromRGB(0, 100, 0), Color3.fromRGB(255, 105, 180),
+            Color3.fromRGB(186, 85, 211), Color3.fromRGB(240, 230, 140),
+            Color3.fromRGB(100, 149, 237), Color3.fromRGB(123, 104, 238),
+            Color3.fromRGB(255, 222, 173), Color3.fromRGB(255, 250, 250),
+            Color3.fromRGB(70, 130, 180), Color3.fromRGB(135, 206, 250),
+            Color3.fromRGB(250, 128, 114), Color3.fromRGB(210, 105, 30),
+            Color3.fromRGB(60, 179, 113), Color3.fromRGB(47, 79, 79),
+            Color3.fromRGB(106, 90, 205), Color3.fromRGB(199, 21, 133),
+            Color3.fromRGB(255, 239, 213), Color3.fromRGB(152, 251, 152),
+            Color3.fromRGB(255, 20, 147), Color3.fromRGB(245, 222, 179),
+            Color3.fromRGB(105, 105, 105), Color3.fromRGB(255, 228, 225),
+            Color3.fromRGB(255, 248, 220), Color3.fromRGB(219, 112, 147),
+            Color3.fromRGB(216, 191, 216), Color3.fromRGB(32, 178, 170),
+            Color3.fromRGB(72, 61, 139), Color3.fromRGB(176, 196, 222),
+            Color3.fromRGB(245, 245, 245), Color3.fromRGB(255, 228, 181),
+            Color3.fromRGB(255, 160, 122), Color3.fromRGB(127, 255, 212),
+            Color3.fromRGB(255, 99, 71), Color3.fromRGB(240, 128, 128),
+            Color3.fromRGB(135, 206, 235), Color3.fromRGB(205, 133, 63)
         }
         while houseColorRunning do
             for _, color in ipairs(houseColors) do
                 if not houseColorRunning then break end
                 local args = { [1] = "ColorPickHouse", [2] = color }
-                local success, err = pcall(function()
-                    remoteHouse:FireServer(unpack(args))
-                end)
+                local success, err = pcall(function() remoteHouse:FireServer(unpack(args)) end)
                 if not success then
                     warn("خطأ أثناء إرسال اللون:", err)
                 end
-                wait(0.5) -- تقدر تخليها أبطأ لو استمر الطرد
+                wait(0.5)
             end
         end
     end)
@@ -852,19 +794,49 @@ tabColors:AddToggle({
 })
 
 -----------------------------------------------------------
+-- **إضافة تبويب "سكنات جاهزة"**
+-----------------------------------------------------------
+local tabSkins = Window:MakeTab({
+    Name = "سكنات جاهزة",
+    Icon = "🎭", -- رمز يمكن تغييره حسب الرغبة
+})
+
+-- مثال زر لتطبيق سكن 1
+tabSkins:AddButton({
+    Name = "سكن 1",
+    Callback = function()
+        -- هنا تضع الكود الذي يطبق التغييرات الخاصة بالسكن 1
+        OrionLib:MakeNotification({
+            Name = "سكن جاهز",
+            Content = "تم تطبيق سكن 1",
+            Time = 5,
+        })
+    end,
+})
+
+-- مثال زر لتطبيق سكن 2
+tabSkins:AddButton({
+    Name = "سكن 2",
+    Callback = function()
+        -- هنا تضع الكود الذي يطبق التغييرات الخاصة بالسكن 2
+        OrionLib:MakeNotification({
+            Name = "سكن جاهز",
+            Content = "تم تطبيق سكن 2",
+            Time = 5,
+        })
+    end,
+})
+
+-----------------------------------------------------------
 -- تحديث قائمة اللاعبين في تبويب الاستهداف كل 5 ثواني
 -----------------------------------------------------------
 task.spawn(function()
     while true do
         local list = {}
         for _, p in ipairs(Players:GetPlayers()) do
-            if p.Name ~= localPlayer.Name then
-                table.insert(list, p.Name)
-            end
+            if p.Name ~= localPlayer.Name then table.insert(list, p.Name) end
         end
-        if dropdownInst then
-            dropdownInst:Refresh(list, true)
-        end
+        if dropdownInst then dropdownInst:Refresh(list, true) end
         task.wait(5)
     end
 end)
