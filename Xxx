@@ -71,9 +71,7 @@ local function startGradient()
     end)
 end
 
-local function stopGradient()
-    gradientRunning = false
-end
+local function stopGradient() gradientRunning = false end
 
 local blinkRunning = false
 local function startBlink()
@@ -90,9 +88,7 @@ local function startBlink()
     end)
 end
 
-local function stopBlink()
-    blinkRunning = false
-end
+local function stopBlink() blinkRunning = false end
 
 local waveRunning = false
 local function startWave()
@@ -109,9 +105,7 @@ local function startWave()
     end)
 end
 
-local function stopWave()
-    waveRunning = false
-end
+local function stopWave() waveRunning = false end
 
 OrionLib:MakeNotification({
     Name = "تنبيه",
@@ -144,9 +138,7 @@ local function startGradientBio()
     end)
 end
 
-local function stopGradientBio()
-    gradientBioRunning = false
-end
+local function stopGradientBio() gradientBioRunning = false end
 
 local blinkBioRunning = false
 local function startBlinkBio()
@@ -163,9 +155,7 @@ local function startBlinkBio()
     end)
 end
 
-local function stopBlinkBio()
-    blinkBioRunning = false
-end
+local function stopBlinkBio() blinkBioRunning = false end
 
 local waveBioRunning = false
 local function startWaveBio()
@@ -182,9 +172,7 @@ local function startWaveBio()
     end)
 end
 
-local function stopWaveBio()
-    waveBioRunning = false
-end
+local function stopWaveBio() waveBioRunning = false end
 
 -----------------------------------------------------------
 -- تهيئة المكتبة والواجهة وإنشاء التبويبات
@@ -213,16 +201,12 @@ local enableJump, enableSpeed = false, false
 
 local function updateJumpPower()
     local h = localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid")
-    if h then
-        h.JumpPower = enableJump and jumpPower or 50
-    end
+    if h then h.JumpPower = enableJump and jumpPower or 50 end
 end
 
 local function updateWalkSpeed()
     local h = localPlayer.Character and localPlayer.Character:FindFirstChild("Humanoid")
-    if h then
-        h.WalkSpeed = enableSpeed and walkSpeed or 16
-    end
+    if h then h.WalkSpeed = enableSpeed and walkSpeed or 16 end
 end
 
 tabPlayer:AddTextbox({
@@ -278,9 +262,7 @@ tabPlayer:AddToggle({
         if s then
             noclipConn = RunService.Stepped:Connect(function()
                 for _, part in ipairs(localPlayer.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
+                    if part:IsA("BasePart") then part.CanCollide = false end
                 end
             end)
         else
@@ -299,7 +281,8 @@ tabControl:AddToggle({
     Callback = function(s)
         if s then
             for _, v in ipairs(workspace:GetDescendants()) do
-                if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
+                if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or 
+                   v:IsA("Fire") or v:IsA("Sparkles") then
                     v:Destroy()
                 end
             end
@@ -398,9 +381,7 @@ local function startFollow(name)
         local t = Players:FindFirstChild(name)
         if hrp and t and t.Character then
             local th = t.Character:FindFirstChild("HumanoidRootPart")
-            if th then
-                hrp.CFrame = th.CFrame + Vector3.new(0,3,0)
-            end
+            if th then hrp.CFrame = th.CFrame + Vector3.new(0,3,0) end
         end
     end)
 end
@@ -488,9 +469,7 @@ tabTarget:AddToggle({
             if char then
                 local humanoid = char:FindFirstChild("Humanoid")
                 local hrp = char:FindFirstChild("HumanoidRootPart")
-                if humanoid then
-                    humanoid.Sit = false
-                end
+                if humanoid then humanoid.Sit = false end
                 if hrp then
                     for _, v in ipairs(hrp:GetChildren()) do
                         if v:IsA("Attachment") or v:IsA("AlignPosition") or v:IsA("AlignOrientation") then
@@ -704,9 +683,7 @@ local function startAvatarColors()
     end)
 end
 
-local function stopAvatarColors()
-    avatarColorRunning = false
-end
+local function stopAvatarColors() avatarColorRunning = false end
 
 tabColors:AddToggle({
     Name = "تغيير لون الافاتار تلقائي",
@@ -761,9 +738,7 @@ local function startCarColors()
     end)
 end
 
-local function stopCarColors()
-    carColorRunning = false
-end
+local function stopCarColors() carColorRunning = false end
 
 tabColors:AddToggle({
     Name = "تغيير لون السيارة تلقائيًا",
@@ -830,9 +805,7 @@ local function startHouseColors()
     end)
 end
 
-local function stopHouseColors()
-    houseColorRunning = false
-end
+local function stopHouseColors() houseColorRunning = false end
 
 tabColors:AddToggle({
     Name = "تغيير لون المنزل تلقائي",
@@ -845,139 +818,6 @@ tabColors:AddToggle({
             stopHouseColors()
             OrionLib:MakeNotification({Name="تم الإيقاف", Content="تغيير لون المنزل تلقائي معطل", Time = 5})
         end
-    end,
-})
-
------------------------------------------------------------
--- إضافة تبويب "سكنات جاهزة" (قسمان: سكنات أولاد وسكنات بنات)
------------------------------------------------------------
-local tabSkinsNew = Window:MakeTab({
-    Name = "سكنات جاهزة",
-    Icon = "🎭",
-})
-
--- قسم "سكنات أولاد"
-tabSkinsNew:AddSection({ Name = "سكنات أولاد" })
-
-tabSkinsNew:AddButton({
-    Name = "سكن ولد 1",
-    Callback = function()
-        local items = {
-            63690008, 144076358, 144076760, 144075659, 10914799581, 
-            1174596088, 7699174, 12399304406, 3339372724, 11775564443, 
-            76664743826864, 15936155195, 15677080176, 83309532975883, 
-            18521389355, 76053859862083, 16658681692, 150381051, 
-            121933576292257, 233705354, 4211409027
-        }
-        for _, itemId in ipairs(items) do
-            game:GetService("ReplicatedStorage").Remotes.Wear:InvokeServer(itemId)
-        end
-        game:GetService("ReplicatedStorage").Remotes.ChangeBodyColor:FireServer("Institutional white")
-        local characterParts = {
-            [1] = {48474356, 0, 0, 0, 0, 134082579}
-        }
-        game:GetService("ReplicatedStorage").Remotes.ChangeCharacterBody:InvokeServer(unpack(characterParts))
-        local newCharacterParts = {
-            [1] = {1, 1, 1, 139607718, 1, 1}
-        }
-        game:GetService("ReplicatedStorage").Remotes.ChangeCharacterBody:InvokeServer(unpack(newCharacterParts))
-        wait(1)
-        game:GetService("ReplicatedStorage").Remotes.Wear:InvokeServer(134082579)
-        OrionLib:MakeNotification({
-            Name = "تنبيه",
-            Content = "تم تطبيق سكن ولد 1",
-            Time = 5,
-        })
-    end,
-})
-
-tabSkinsNew:AddButton({
-    Name = "سكن ولد 2",
-    Callback = function()
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local characterBodies = {
-            {1, 1, 1, 139607718, 1, 1},
-            {1, 1, 1, 139607718, 1, 1},
-            {86499666, 27112039, 27112052, 139607718, 27112056, 16580493236}
-        }
-        for _, body in ipairs(characterBodies) do
-            ReplicatedStorage.Remotes.ChangeCharacterBody:InvokeServer(body)
-        end
-        local wearables = {
-            144076760, 144075659, 7402745350, 17681682688, 144075659,
-            3339372724, 3240543366, 15986412592, 4904891637, 11363898043,
-            10791180072, 13463272877, 973771666
-        }
-        for _, item in ipairs(wearables) do
-            ReplicatedStorage.Remotes.Wear:InvokeServer(item)
-        end
-        ReplicatedStorage.Remotes.ChangeBodyColor:FireServer("Pastel brown")
-        OrionLib:MakeNotification({
-            Name = "تنبيه",
-            Content = "تم تطبيق سكن ولد 2",
-            Time = 5,
-        })
-    end,
-})
-
--- قسم "سكنات بنات"
-tabSkinsNew:AddSection({ Name = "سكنات بنات" })
-
-tabSkinsNew:AddButton({
-    Name = "سكن بنت 1",
-    Callback = function()
-        local replicatedStorage = game:GetService("ReplicatedStorage")
-        local wearRemote = replicatedStorage.Remotes.Wear
-        local changeBodyRemote = replicatedStorage.Remotes.ChangeCharacterBody
-        local changeColorRemote = replicatedStorage.Remotes.ChangeBodyColor
-
-        local commands = {
-            function() changeBodyRemote:InvokeServer({1, 1, 1, 1, 1, 16580493236}) end,
-            function() wearRemote:InvokeServer(63690008) end,
-            function() wearRemote:InvokeServer(144076358) end,
-            function() wearRemote:InvokeServer(144076760) end,
-            function() wearRemote:InvokeServer(144075659) end,
-            function() changeBodyRemote:InvokeServer({86499666, 86499698, 86499716, 86499793, 86499753, 14960720067}) end,
-            function() wearRemote:InvokeServer(12116667358) end,
-            function() wearRemote:InvokeServer(7018551862) end,
-            function() wearRemote:InvokeServer(10713798995) end,
-            function() wearRemote:InvokeServer(79102714515802) end,
-            function() wearRemote:InvokeServer(233705354) end,
-            function() wearRemote:InvokeServer(11548559838) end,
-            function() wearRemote:InvokeServer(10951731085) end,
-            function() changeColorRemote:FireServer("Mid gray") end,
-            function() wearRemote:InvokeServer(18538150608) end,
-        }
-        for _, command in ipairs(commands) do
-            command()
-        end
-        OrionLib:MakeNotification({
-            Name = "تنبيه",
-            Content = "تم تطبيق سكن بنت 1",
-            Time = 5,
-        })
-    end,
-})
-
-tabSkinsNew:AddButton({
-    Name = "سكن بنت 2",
-    Callback = function()
-        local itemIDs = {
-            63690008, 144076358, 144076760, 144075659, 11863491827,
-            17156568103, 7699174, 17744851762, 10789933479, 16266331263,
-            17274655265, 14475326317, 14388004031, 18538150608
-        }
-        for _, id in ipairs(itemIDs) do
-            game:GetService("ReplicatedStorage").Remotes.Wear:InvokeServer(id)
-        end
-        local bodyArgs = {96491916349570, 76683091425509, 75159926897589, 0, 0, 3210773801}
-        game:GetService("ReplicatedStorage").Remotes.ChangeCharacterBody:InvokeServer(bodyArgs)
-        game:GetService("ReplicatedStorage").Remotes.ChangeBodyColor:FireServer("Institutional white")
-        OrionLib:MakeNotification({
-            Name = "تنبيه",
-            Content = "تم تطبيق سكن بنت 2",
-            Time = 5,
-        })
     end,
 })
 
