@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        ⚽  موسّع هيتبوكس الكرة  ⚽         ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v3.1                     ║
+	║                 v3.2                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift  (قابل للتغيير)
@@ -34,7 +34,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- الإعدادات الثابتة
 -----------------------------------------------------------
 local CONFIG = {
-	Version = "v3.1",
+	Version = "v3.2",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Hitbox.json",
 	MinSize = 0.5,
@@ -124,6 +124,9 @@ local state = {
 	diveRange = 14,
 	saveCooldown = 1,
 	faceBall = true,
+	useRemote = true,
+	saveReach = 6,
+	autoDive = true,
 
 	-- غير محفوظة
 	enabled = false,
@@ -137,6 +140,7 @@ local SAVED_KEYS = {
 	"prediction", "alert", "alertDistance", "toggleKey", "quickKey",
 	"themeIndex", "floatingButton", "autoSave", "standButtonPath", "diveButtonPath",
 	"reactionTime", "standRange", "diveRange", "saveCooldown", "faceBall",
+	"useRemote", "saveReach", "autoDive",
 }
 
 -----------------------------------------------------------
@@ -1395,6 +1399,58 @@ local function finishPicking(position)
 	end)
 end
 
+-- ريموتات الماب (Remotes.Game.Touch / Touch.Kick / Ragdoll)
+local function findGameRemote(...)
+	local node = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+	for _, name in ipairs({ ... }) do
+		node = node and node:FindFirstChild(name)
+	end
+	return node
+end
+
+-- نفس اللي ترسله اللعبة لما الكرة تلمس يد الحارس
+local function remoteSave(ball, root)
+	local touchRemote = findGameRemote("Game", "Touch")
+	if not touchRemote then return end
+	local kickRemote = touchRemote:FindFirstChild("Kick")
+	local data = {
+		ball,
+		"Save",
+		0.19,
+		{ Right = false, Ground = false, Left = false },
+		root.CFrame,
+		Vector3.zero,
+	}
+	task.spawn(function()
+		pcall(function()
+			touchRemote:InvokeServer(data)
+		end)
+	end)
+	if kickRemote then
+		pcall(function()
+			kickRemote:FireServer(data)
+		end)
+	end
+end
+
+-- قفزة نحو مكان وصول الكرة (اللعبة تقفز على جهازك ثم ترسل Ragdoll)
+local function remoteDive(root, offset, t)
+	local flat = Vector3.new(offset.X, 0, offset.Z)
+	if flat.Magnitude < 0.5 then return end
+	local speed = math.clamp(flat.Magnitude / math.max(t, 0.15), 20, 60)
+	root.CFrame = CFrame.lookAt(root.Position, root.Position + flat)
+	root.AssemblyLinearVelocity = flat.Unit * speed + Vector3.new(0, 12, 0)
+	local ragdollRemote = findGameRemote("Game", "Ragdoll")
+	if ragdollRemote then
+		pcall(function()
+			ragdollRemote:FireServer()
+		end)
+	end
+end
+
+switchCard("استخدام الريموت (أدق)", "يرسل التصدّي للسيرفر مباشرة بدون أزرار", "useRemote")
+sliderCard("مسافة مسك الكرة", "saveReach", 2, 15, 0.5, "%.1f")
+switchCard("قفز تلقائي", "يقفز نحو الكرة إذا كانت بعيدة على جنب", "autoDive")
 sliderCard("وقت ردة الفعل (ثانية)", "reactionTime", 0.1, 1, 0.05, "%.2f")
 sliderCard("مدى التصدّي واقف", "standRange", 1, 10, 0.5, "%.1f")
 sliderCard("أقصى مدى للقفز", "diveRange", 4, 30, 1, "%d")
@@ -1402,6 +1458,19 @@ sliderCard("وقت الانتظار بين كل تصدّي", "saveCooldown", 0.3
 switchCard("توجيه اللاعب نحو الكرة", "يلف اللاعب باتجاه الكرة قبل التصدّي", "faceBall")
 
 local lastSaveTime = 0
+local lastDiveTime = 0
+
+local function faceTowards(root, direction)
+	local flat = Vector3.new(direction.X, 0, direction.Z)
+	if flat.Magnitude > 0.1 then
+		root.CFrame = CFrame.lookAt(root.Position, root.Position + flat)
+	end
+end
+
+local function countSave()
+	saveCount += 1
+	autoSaveSub.Text = "عدد التصدّيات: " .. saveCount
+end
 
 connect(RunService.Heartbeat, function()
 	if not state.autoSave or picking then return end
@@ -1412,14 +1481,20 @@ connect(RunService.Heartbeat, function()
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	if not root then return end
 
-	-- أخطر كرة: قادمة نحوك وأقرب وقت وصول
-	local best
+	-- best: أخطر كرة قادمة (أقرب وقت وصول) • nearest: أقرب كرة تتحرك نحوك
+	local best, nearest, nearestDistance = nil, nil, math.huge
 	for part in pairs(trackedBalls) do
 		if part.Parent then
 			local velocity = part.AssemblyLinearVelocity
 			local speed = velocity.Magnitude
+			local rel = part.Position - root.Position
+			local distance = rel.Magnitude
+
+			if speed > 3 and rel:Dot(velocity) < 0 and distance < nearestDistance then
+				nearest, nearestDistance = part, distance
+			end
+
 			if speed > 8 then
-				local rel = part.Position - root.Position
 				local t = -rel:Dot(velocity) / (speed * speed)
 				if t > 0 and t <= state.reactionTime then
 					local closest = rel + velocity * t
@@ -1432,8 +1507,25 @@ connect(RunService.Heartbeat, function()
 			end
 		end
 	end
-	if not best then return end
 
+	-- طريقة الريموت: نمسك الكرة لما توصل لمسافة المسك
+	if state.useRemote and findGameRemote("Game", "Touch") then
+		if nearest and nearestDistance <= state.saveReach then
+			lastSaveTime = now
+			if state.faceBall then
+				faceTowards(root, nearest.Position - root.Position)
+			end
+			remoteSave(nearest, root)
+			countSave()
+		elseif state.autoDive and best and best.miss > state.standRange and now - lastDiveTime > 1.5 then
+			lastDiveTime = now
+			remoteDive(root, best.offset, best.t)
+		end
+		return
+	end
+
+	-- طريقة الأزرار
+	if not best then return end
 	local standBtn = getSaveButton("stand")
 	local diveBtn = getSaveButton("dive")
 	local btn
@@ -1446,15 +1538,10 @@ connect(RunService.Heartbeat, function()
 
 	lastSaveTime = now
 	if state.faceBall then
-		local target = best.miss > 0.5 and best.offset or Vector3.new(best.part.Position.X - root.Position.X, 0, best.part.Position.Z - root.Position.Z)
-		if target.Magnitude > 0.1 then
-			root.CFrame = CFrame.lookAt(root.Position, root.Position + target)
-		end
+		faceTowards(root, best.miss > 0.5 and best.offset or (best.part.Position - root.Position))
 	end
 	task.spawn(pressButton, btn)
-
-	saveCount += 1
-	autoSaveSub.Text = "عدد التصدّيات: " .. saveCount
+	countSave()
 end)
 
 -----------------------------------------------------------
