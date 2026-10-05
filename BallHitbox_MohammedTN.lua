@@ -2,13 +2,14 @@
 	╔══════════════════════════════════════════╗
 	║        ⚽  موسّع هيتبوكس الكرة  ⚽         ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v3.0                     ║
+	║                 v3.1                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift  (قابل للتغيير)
 	• تشغيل / إيقاف الهيتبوكس : H          (قابل للتغيير)
 	• يدعم الكمبيوتر والجوال (زر عائم للجوال)
 	• حفظ الإعدادات تلقائياً (إذا كان الـ Executor يدعم writefile)
+	• تصدّي تلقائي: اختر زر التصدّي وزر القفز من الشاشة مرة وحدة
 ]]
 
 -----------------------------------------------------------
@@ -20,6 +21,11 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local Workspace = game:GetService("Workspace")
+local GuiService = game:GetService("GuiService")
+local VirtualInputManager = nil
+pcall(function()
+	VirtualInputManager = game:GetService("VirtualInputManager")
+end)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -28,7 +34,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- الإعدادات الثابتة
 -----------------------------------------------------------
 local CONFIG = {
-	Version = "v3.0",
+	Version = "v3.1",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Hitbox.json",
 	MinSize = 0.5,
@@ -110,6 +116,14 @@ local state = {
 	quickKey = "H",
 	themeIndex = 1,
 	floatingButton = UserInputService.TouchEnabled,
+	autoSave = false,
+	standButtonPath = "",
+	diveButtonPath = "",
+	reactionTime = 0.35,
+	standRange = 4,
+	diveRange = 14,
+	saveCooldown = 1,
+	faceBall = true,
 
 	-- غير محفوظة
 	enabled = false,
@@ -121,7 +135,8 @@ local SAVED_KEYS = {
 	"ballName", "size", "autoSize", "axisX", "axisY", "axisZ", "showHitbox",
 	"transparency", "outline", "colorIndex", "pulse", "esp", "tracer",
 	"prediction", "alert", "alertDistance", "toggleKey", "quickKey",
-	"themeIndex", "floatingButton",
+	"themeIndex", "floatingButton", "autoSave", "standButtonPath", "diveButtonPath",
+	"reactionTime", "standRange", "diveRange", "saveCooldown", "faceBall",
 }
 
 -----------------------------------------------------------
@@ -1220,6 +1235,229 @@ nameBox.FocusLost:Connect(function(enterPressed)
 end)
 
 -----------------------------------------------------------
+-- القسم: التصدّي التلقائي
+-----------------------------------------------------------
+sectionHeader("🧤 التصدّي التلقائي")
+
+local saveButtons = {}  -- [kind] = GuiButton
+local picking = nil     -- "stand" أو "dive" أثناء اختيار الزر
+local saveCount = 0
+
+-- مسار الزر داخل PlayerGui (لإيجاده مرة ثانية بعد الموت أو إعادة التشغيل)
+local function buttonPath(btn)
+	local names = {}
+	local node = btn
+	while node and node ~= playerGui do
+		table.insert(names, 1, node.Name)
+		node = node.Parent
+	end
+	return node == playerGui and table.concat(names, "/") or ""
+end
+
+local function resolvePath(path)
+	if path == "" then return nil end
+	local node = playerGui
+	for name in string.gmatch(path, "[^/]+") do
+		node = node:FindFirstChild(name)
+		if not node then return nil end
+	end
+	return node:IsA("GuiButton") and node or nil
+end
+
+local function getSaveButton(kind)
+	local btn = saveButtons[kind]
+	if btn and btn.Parent then return btn end
+	btn = resolvePath(state[kind .. "ButtonPath"])
+	saveButtons[kind] = btn
+	return btn
+end
+
+-- يضغط زر اللعبة: أولاً عبر getconnections ثم بنقرة وهمية
+local function pressButton(btn)
+	if not btn or not btn.Parent then return end
+	if typeof(getconnections) == "function" then
+		for _, signalName in ipairs({ "Activated", "MouseButton1Click", "MouseButton1Down", "TouchTap" }) do
+			local fired = false
+			pcall(function()
+				for _, conn in ipairs(getconnections(btn[signalName])) do
+					fired = true
+					conn:Fire()
+				end
+			end)
+			if fired then return end
+		end
+	end
+	if VirtualInputManager then
+		pcall(function()
+			local center = btn.AbsolutePosition + btn.AbsoluteSize / 2
+			local layer = btn:FindFirstAncestorWhichIsA("ScreenGui")
+			if not (layer and layer.IgnoreGuiInset) then
+				center += GuiService:GetGuiInset()
+			end
+			VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 0)
+			task.wait(0.05)
+			VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 0)
+		end)
+	end
+end
+
+-- أصغر زر من أزرار اللعبة تحت نقطة اللمس
+local function findButtonAt(position)
+	local inset = GuiService:GetGuiInset()
+	for _, offset in ipairs({ Vector2.zero, inset, -inset }) do
+		local best, bestArea = nil, math.huge
+		for _, obj in ipairs(playerGui:GetDescendants()) do
+			if obj:IsA("GuiButton") and obj.Visible and not obj:IsDescendantOf(screenGui) then
+				local layer = obj:FindFirstAncestorWhichIsA("ScreenGui")
+				if layer and layer.Enabled then
+					local p = position + offset
+					if layer.IgnoreGuiInset then
+						p += inset
+					end
+					local a, s = obj.AbsolutePosition, obj.AbsoluteSize
+					local area = s.X * s.Y
+					if p.X >= a.X and p.X <= a.X + s.X and p.Y >= a.Y and p.Y <= a.Y + s.Y and area < bestArea then
+						best, bestArea = obj, area
+					end
+				end
+			end
+		end
+		if best then
+			return best
+		end
+	end
+	return nil
+end
+
+local _, autoSaveSub = switchCard(
+	"تفعيل التصدّي التلقائي",
+	"عدد التصدّيات: 0",
+	"autoSave",
+	function(value)
+		notify(value and "تم تفعيل التصدّي التلقائي 🧤" or "تم إيقاف التصدّي التلقائي", value and THEME.Success or THEME.Danger)
+	end
+)
+
+local pickLabels = {}
+
+local function refreshPickLabels()
+	for kind, lbl in pairs(pickLabels) do
+		local btn = getSaveButton(kind)
+		lbl.Text = btn and ("✓ تم الاختيار: " .. btn.Name) or "لم يتم اختيار زر بعد"
+		lbl.TextColor3 = btn and THEME.Success or THEME.SubText
+	end
+end
+
+local function pickCard(title, kind)
+	local c = card(54)
+	pickLabels[kind] = cardTitle(c, title, "")
+	local pickBtn = smallButton(c, "اختيار", UDim2.new(0, 14, 0, 12), UDim2.new(0, 56, 0, 30))
+	pickBtn.TextSize = 13
+	local testBtn = smallButton(c, "تجربة", UDim2.new(0, 76, 0, 12), UDim2.new(0, 56, 0, 30))
+	testBtn.TextSize = 13
+
+	pickBtn.MouseButton1Click:Connect(function()
+		picking = kind
+		mainFrame.Visible = false
+		notify("اضغط الحين على " .. title .. " في شاشة اللعبة", THEME.Accent2)
+	end)
+
+	testBtn.MouseButton1Click:Connect(function()
+		local btn = getSaveButton(kind)
+		if btn then
+			task.spawn(pressButton, btn)
+			notify("تم ضغط الزر للتجربة", THEME.Accent2)
+		else
+			notify("اختر الزر أولاً", THEME.Danger)
+		end
+	end)
+end
+
+pickCard("زر التصدّي (واقف)", "stand")
+pickCard("زر القفز (زاوية)", "dive")
+refreshPickLabels()
+
+local function finishPicking(position)
+	local kind = picking
+	picking = nil
+	local btn = findButtonAt(position)
+	if btn then
+		saveButtons[kind] = btn
+		state[kind .. "ButtonPath"] = buttonPath(btn)
+		scheduleSave()
+		notify("تم اختيار الزر ✓", THEME.Success)
+	else
+		notify("ما لقيت زر في هذا المكان، جرّب مرة ثانية", THEME.Danger)
+	end
+	refreshPickLabels()
+	task.delay(0.3, function()
+		mainFrame.Visible = state.guiVisible
+	end)
+end
+
+sliderCard("وقت ردة الفعل (ثانية)", "reactionTime", 0.1, 1, 0.05, "%.2f")
+sliderCard("مدى التصدّي واقف", "standRange", 1, 10, 0.5, "%.1f")
+sliderCard("أقصى مدى للقفز", "diveRange", 4, 30, 1, "%d")
+sliderCard("وقت الانتظار بين كل تصدّي", "saveCooldown", 0.3, 3, 0.1, "%.1f")
+switchCard("توجيه اللاعب نحو الكرة", "يلف اللاعب باتجاه الكرة قبل التصدّي", "faceBall")
+
+local lastSaveTime = 0
+
+connect(RunService.Heartbeat, function()
+	if not state.autoSave or picking then return end
+	local now = os.clock()
+	if now - lastSaveTime < state.saveCooldown then return end
+
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+
+	-- أخطر كرة: قادمة نحوك وأقرب وقت وصول
+	local best
+	for part in pairs(trackedBalls) do
+		if part.Parent then
+			local velocity = part.AssemblyLinearVelocity
+			local speed = velocity.Magnitude
+			if speed > 8 then
+				local rel = part.Position - root.Position
+				local t = -rel:Dot(velocity) / (speed * speed)
+				if t > 0 and t <= state.reactionTime then
+					local closest = rel + velocity * t
+					local flat = Vector3.new(closest.X, 0, closest.Z)
+					local miss = flat.Magnitude
+					if math.abs(closest.Y) < 12 and miss <= state.diveRange and (not best or t < best.t) then
+						best = { t = t, miss = miss, offset = flat, part = part }
+					end
+				end
+			end
+		end
+	end
+	if not best then return end
+
+	local standBtn = getSaveButton("stand")
+	local diveBtn = getSaveButton("dive")
+	local btn
+	if best.miss <= state.standRange then
+		btn = standBtn or diveBtn
+	else
+		btn = diveBtn or standBtn
+	end
+	if not btn then return end
+
+	lastSaveTime = now
+	if state.faceBall then
+		local target = best.miss > 0.5 and best.offset or Vector3.new(best.part.Position.X - root.Position.X, 0, best.part.Position.Z - root.Position.Z)
+		if target.Magnitude > 0.1 then
+			root.CFrame = CFrame.lookAt(root.Position, root.Position + target)
+		end
+	end
+	task.spawn(pressButton, btn)
+
+	saveCount += 1
+	autoSaveSub.Text = "عدد التصدّيات: " .. saveCount
+end)
+
+-----------------------------------------------------------
 -- القسم: الإعدادات
 -----------------------------------------------------------
 sectionHeader("🛠️ الإعدادات")
@@ -1524,6 +1762,12 @@ connect(UserInputService.InputEnded, function(input)
 end)
 
 connect(UserInputService.InputBegan, function(input, gameProcessed)
+	-- اختيار زر التصدّي من شاشة اللعبة
+	if picking and isPress(input) then
+		finishPicking(Vector2.new(input.Position.X, input.Position.Y))
+		return
+	end
+
 	-- التقاط زر اختصار جديد
 	if capturing and input.UserInputType == Enum.UserInputType.Keyboard then
 		local c = capturing
