@@ -2,14 +2,14 @@
 	╔══════════════════════════════════════════╗
 	║        ⚽  موسّع هيتبوكس الكرة  ⚽         ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v3.2                     ║
+	║                 v4.0                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift  (قابل للتغيير)
 	• تشغيل / إيقاف الهيتبوكس : H          (قابل للتغيير)
+	• توقّع مسار الشوت: فيزياء كاملة (جاذبية + قوة الكرة + ارتداد + تعويض البنق)
 	• يدعم الكمبيوتر والجوال (زر عائم للجوال)
 	• حفظ الإعدادات تلقائياً (إذا كان الـ Executor يدعم writefile)
-	• تصدّي تلقائي: اختر زر التصدّي وزر القفز من الشاشة مرة وحدة
 ]]
 
 -----------------------------------------------------------
@@ -21,11 +21,6 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local Workspace = game:GetService("Workspace")
-local GuiService = game:GetService("GuiService")
-local VirtualInputManager = nil
-pcall(function()
-	VirtualInputManager = game:GetService("VirtualInputManager")
-end)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -34,16 +29,25 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- الإعدادات الثابتة
 -----------------------------------------------------------
 local CONFIG = {
-	Version = "v3.2",
+	Version = "v4.0",
 	Author = "محمد TN",
-	SaveFile = "MohammedTN_Hitbox.json",
+	SaveFile = "MohammedTN_Hitbox_v4.json",
 	MinSize = 0.5,
 	MaxSize = 10,
 	SizePresets = { 2, 4, 6, 8 },
-	AutoSizeRange = 40,       -- كل 40 مسافة يتضاعف الحجم في الوضع التلقائي
-	PredictionDots = 10,
-	PredictionStep = 0.08,    -- ثواني بين كل نقطة في توقّع المسار
+	AutoSizeRange = 40,          -- كل 40 مسافة يتضاعف الحجم في الوضع التلقائي
 	AlertSound = "rbxasset://sounds/electronicpingshort.wav",
+	Prediction = {
+		Step = 1 / 60,           -- دقة المحاكاة (60 خطوة بالثانية)
+		PointEvery = 3,          -- نرسم نقطة كل 3 خطوات
+		MaxBounces = 4,
+		MaxBalls = 3,            -- أقصى عدد كرات نتوقع مسارها بنفس الوقت
+		MinSpeed = 4,            -- أقل سرعة نعتبر فيها الكرة متحركة
+		MaxRange = 350,          -- أبعد مسافة للكرة عنك
+		SettleSpeed = 2.5,       -- تحت هذه السرعة العمودية الكرة تتدحرج ونوقف
+		CalibrationRate = 0.12,  -- سرعة المعايرة التلقائية
+		CalibrationLimit = 80,   -- نتجاهل القفزات الكبيرة (اصطدامات)
+	},
 	OutlineColors = {
 		Color3.fromRGB(124, 92, 255),
 		Color3.fromRGB(0, 190, 255),
@@ -69,16 +73,17 @@ local CONFIG = {
 -- الألوان
 -----------------------------------------------------------
 local THEME = {
-	Background   = Color3.fromRGB(14, 14, 22),
-	Surface      = Color3.fromRGB(22, 22, 34),
-	SurfaceLight = Color3.fromRGB(34, 34, 52),
-	Stroke       = Color3.fromRGB(58, 58, 88),
+	Background   = Color3.fromRGB(13, 13, 20),
+	Surface      = Color3.fromRGB(21, 21, 32),
+	SurfaceLight = Color3.fromRGB(33, 33, 50),
+	Stroke       = Color3.fromRGB(56, 56, 86),
 	Accent       = CONFIG.Themes[1].Accent,
 	Accent2      = CONFIG.Themes[1].Accent2,
 	Text         = Color3.fromRGB(240, 240, 250),
-	SubText      = Color3.fromRGB(150, 150, 178),
+	SubText      = Color3.fromRGB(148, 148, 176),
 	Success      = Color3.fromRGB(46, 204, 113),
 	Danger       = Color3.fromRGB(235, 77, 75),
+	Warning      = Color3.fromRGB(255, 190, 40),
 }
 
 local FONT_BOLD = Enum.Font.GothamBold
@@ -105,28 +110,24 @@ local state = {
 	showHitbox = true,
 	transparency = 0.5,
 	outline = true,
-	colorIndex = 1,
+	colorIndex = 2,
 	pulse = false,
 	esp = false,
 	tracer = false,
-	prediction = false,
+	prediction = true,
+	predictTime = 2.5,
+	predictBounces = true,
+	predictLag = true,
+	predictCalibrate = true,
+	predictLanding = true,
+	predictClosest = true,
 	alert = false,
 	alertDistance = 15,
 	toggleKey = "RightShift",
 	quickKey = "H",
 	themeIndex = 1,
 	floatingButton = UserInputService.TouchEnabled,
-	autoSave = false,
-	standButtonPath = "",
-	diveButtonPath = "",
-	reactionTime = 0.35,
-	standRange = 4,
-	diveRange = 14,
-	saveCooldown = 1,
-	faceBall = true,
-	useRemote = true,
-	saveReach = 6,
-	autoDive = true,
+	activeTab = 1,
 
 	-- غير محفوظة
 	enabled = false,
@@ -137,10 +138,9 @@ local state = {
 local SAVED_KEYS = {
 	"ballName", "size", "autoSize", "axisX", "axisY", "axisZ", "showHitbox",
 	"transparency", "outline", "colorIndex", "pulse", "esp", "tracer",
-	"prediction", "alert", "alertDistance", "toggleKey", "quickKey",
-	"themeIndex", "floatingButton", "autoSave", "standButtonPath", "diveButtonPath",
-	"reactionTime", "standRange", "diveRange", "saveCooldown", "faceBall",
-	"useRemote", "saveReach", "autoDive",
+	"prediction", "predictTime", "predictBounces", "predictLag", "predictCalibrate",
+	"predictLanding", "predictClosest", "alert", "alertDistance", "toggleKey",
+	"quickKey", "themeIndex", "floatingButton", "activeTab",
 }
 
 -----------------------------------------------------------
@@ -156,6 +156,7 @@ local function loadSettings()
 		if isfile(CONFIG.SaveFile) then
 			return HttpService:JSONDecode(readfile(CONFIG.SaveFile))
 		end
+		return nil
 	end)
 	if not ok or type(data) ~= "table" then return end
 	for _, key in ipairs(SAVED_KEYS) do
@@ -190,7 +191,7 @@ loadSettings()
 THEME.Accent = CONFIG.Themes[state.themeIndex].Accent
 THEME.Accent2 = CONFIG.Themes[state.themeIndex].Accent2
 
--- [part] = { Size, Transparency, CanCollide, Conn, Box, Esp, EspLabel, Tracer, Dots }
+-- [part] = { Size, Transparency, CanCollide, Mass, Conn, Box, Esp, EspLabel, Tracer, Calib, LastVel, LastVelTime }
 local trackedBalls = {}
 local connections = {}
 
@@ -283,8 +284,8 @@ end
 -----------------------------------------------------------
 -- الواجهة الرئيسية
 -----------------------------------------------------------
-local FULL_SIZE = UDim2.new(0, 340, 0, 480)
-local MINI_SIZE = UDim2.new(0, 340, 0, 58)
+local FULL_SIZE = UDim2.new(0, 360, 0, 500)
+local MINI_SIZE = UDim2.new(0, 360, 0, 58)
 
 local screenGui = create("ScreenGui", {
 	Name = "MohammedTN_HitboxGui",
@@ -294,7 +295,7 @@ local screenGui = create("ScreenGui", {
 	Parent = playerGui,
 })
 
--- طبقة الرسم (خطوط التتبّع ونقاط المسار) خلف الواجهة
+-- طبقة الرسم (خطوط التتبّع) خلف الواجهة
 local overlay = create("Frame", {
 	Name = "Overlay",
 	Size = UDim2.new(1, 0, 1, 0),
@@ -313,7 +314,7 @@ local mainFrame = create("Frame", {
 	Active = true,
 	Parent = screenGui,
 }, {
-	corner(14),
+	corner(16),
 	stroke(THEME.Stroke, 1.5),
 })
 
@@ -361,7 +362,7 @@ create("Frame", {
 create("TextLabel", {
 	AnchorPoint = Vector2.new(1, 0),
 	Position = UDim2.new(1, -60, 0, 10),
-	Size = UDim2.new(1, -140, 0, 22),
+	Size = UDim2.new(1, -150, 0, 22),
 	BackgroundTransparency = 1,
 	Text = "موسّع هيتبوكس الكرة",
 	TextColor3 = THEME.Text,
@@ -374,11 +375,11 @@ create("TextLabel", {
 create("TextLabel", {
 	AnchorPoint = Vector2.new(1, 0),
 	Position = UDim2.new(1, -60, 0, 32),
-	Size = UDim2.new(1, -140, 0, 16),
+	Size = UDim2.new(1, -150, 0, 16),
 	BackgroundTransparency = 1,
-	Text = "صنع من قبل " .. CONFIG.Author,
+	Text = "صنع من قبل " .. CONFIG.Author .. "  •  " .. CONFIG.Version,
 	TextColor3 = Color3.new(1, 1, 1),
-	TextSize = 13,
+	TextSize = 12,
 	Font = FONT_BOLD,
 	TextXAlignment = Enum.TextXAlignment.Right,
 	Parent = titleBar,
@@ -410,43 +411,117 @@ local closeBtn = titleButton("✕", 14, THEME.Danger)
 local minimizeBtn = titleButton("—", 50)
 
 -----------------------------------------------------------
--- منطقة المحتوى (قابلة للتمرير)
+-- التبويبات
 -----------------------------------------------------------
-local content = create("ScrollingFrame", {
-	Name = "Content",
-	Position = UDim2.new(0, 0, 0, 62),
-	Size = UDim2.new(1, 0, 1, -62),
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-	CanvasSize = UDim2.new(0, 0, 0, 0),
-	AutomaticCanvasSize = Enum.AutomaticSize.Y,
-	ScrollBarThickness = 3,
-	ScrollingDirection = Enum.ScrollingDirection.Y,
-	Parent = mainFrame,
-}, {
-	create("UIListLayout", {
-		Padding = UDim.new(0, 10),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-	}),
-	create("UIPadding", {
-		PaddingTop = UDim.new(0, 8),
-		PaddingBottom = UDim.new(0, 14),
-		PaddingLeft = UDim.new(0, 14),
-		PaddingRight = UDim.new(0, 14),
-	}),
-})
-accentize(content, "ScrollBarImageColor3", "Accent")
+local TAB_NAMES = { "⚽ الهيتبوكس", "🎯 التوقّع", "🎨 المظهر", "🧭 أدوات", "⚙️ إعدادات" }
+local TAB_COUNT = #TAB_NAMES
 
-local cardOrder = 0
+local tabBar = create("Frame", {
+	Name = "Tabs",
+	Position = UDim2.new(0, 12, 0, 66),
+	Size = UDim2.new(1, -24, 0, 36),
+	BackgroundColor3 = THEME.Surface,
+	BorderSizePixel = 0,
+	Parent = mainFrame,
+}, { corner(10), stroke(THEME.Stroke, 1, 0.5) })
+
+local tabIndicator = create("Frame", {
+	Size = UDim2.new(1 / TAB_COUNT, -10, 1, -8),
+	Position = UDim2.new(0, 5, 0, 4),
+	BackgroundColor3 = Color3.new(1, 1, 1),
+	BorderSizePixel = 0,
+	Parent = tabBar,
+}, { corner(8), accentGradient(0) })
+
+local pageHolder = create("Frame", {
+	Name = "Pages",
+	Position = UDim2.new(0, 0, 0, 108),
+	Size = UDim2.new(1, 0, 1, -108),
+	BackgroundTransparency = 1,
+	Parent = mainFrame,
+})
+
+local pages = {}
+local currentPage
+
+-- التبويب الأول على اليمين (ترتيب عربي)
+local function tabPosition(index)
+	return UDim2.new((TAB_COUNT - index) / TAB_COUNT, 5, 0, 4)
+end
+
+local function selectTab(index, animated)
+	state.activeTab = index
+	for i, page in ipairs(pages) do
+		page.Frame.Visible = (i == index)
+		tween(page.Button, 0.2, { TextColor3 = (i == index) and THEME.Text or THEME.SubText })
+	end
+	tween(tabIndicator, animated and 0.3 or 0, { Position = tabPosition(index) })
+end
+
+local function newPage(title)
+	local index = #pages + 1
+	local frame = create("ScrollingFrame", {
+		Name = "Page" .. index,
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollBarThickness = 3,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		Visible = false,
+		Parent = pageHolder,
+	}, {
+		create("UIListLayout", {
+			Padding = UDim.new(0, 10),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+		create("UIPadding", {
+			PaddingTop = UDim.new(0, 4),
+			PaddingBottom = UDim.new(0, 14),
+			PaddingLeft = UDim.new(0, 12),
+			PaddingRight = UDim.new(0, 12),
+		}),
+	})
+	accentize(frame, "ScrollBarImageColor3", "Accent")
+
+	local button = create("TextButton", {
+		Size = UDim2.new(1 / TAB_COUNT, 0, 1, 0),
+		Position = UDim2.new((TAB_COUNT - index) / TAB_COUNT, 0, 0, 0),
+		BackgroundTransparency = 1,
+		Text = title,
+		TextColor3 = THEME.SubText,
+		TextScaled = true,
+		Font = FONT_BOLD,
+		ZIndex = 2,
+		Parent = tabBar,
+	}, {
+		create("UITextSizeConstraint", { MaxTextSize = 12, MinTextSize = 8 }),
+		create("UIPadding", { PaddingLeft = UDim.new(0, 3), PaddingRight = UDim.new(0, 3) }),
+	})
+	button.MouseButton1Click:Connect(function()
+		selectTab(index, true)
+		scheduleSave()
+	end)
+
+	pages[index] = { Frame = frame, Button = button, Order = 0 }
+	currentPage = pages[index]
+	return currentPage
+end
+
+local function nextOrder()
+	currentPage.Order += 1
+	return currentPage.Order
+end
+
 local function card(height)
-	cardOrder += 1
 	return create("Frame", {
 		Size = UDim2.new(1, 0, 0, height),
 		BackgroundColor3 = THEME.Surface,
 		BorderSizePixel = 0,
-		LayoutOrder = cardOrder,
-		Parent = content,
-	}, { corner(10), stroke(THEME.Stroke, 1, 0.4) })
+		LayoutOrder = nextOrder(),
+		Parent = currentPage.Frame,
+	}, { corner(12), stroke(THEME.Stroke, 1, 0.45) })
 end
 
 local function label(parent, props)
@@ -458,13 +533,12 @@ local function label(parent, props)
 end
 
 local function sectionHeader(text)
-	cardOrder += 1
-	local header = label(content, {
-		Size = UDim2.new(1, 0, 0, 18),
+	local header = label(currentPage.Frame, {
+		Size = UDim2.new(1, 0, 0, 20),
 		Text = text,
 		TextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Right,
-		LayoutOrder = cardOrder,
+		LayoutOrder = nextOrder(),
 	})
 	accentize(header, "TextColor3", "Accent2")
 end
@@ -571,6 +645,8 @@ end
 local activeSlider = nil
 
 local function makeSlider(parent, y, min, max, step, initial, format, onChanged)
+	local page = currentPage.Frame
+
 	local bg = create("Frame", {
 		Position = UDim2.new(0, 14, 0, y),
 		Size = UDim2.new(1, -28, 0, 10),
@@ -599,7 +675,7 @@ local function makeSlider(parent, y, min, max, step, initial, format, onChanged)
 
 	local badge = create("TextLabel", {
 		Position = UDim2.new(0, 14, 0, y - 38),
-		Size = UDim2.new(0, 56, 0, 24),
+		Size = UDim2.new(0, 60, 0, 24),
 		BackgroundColor3 = THEME.SurfaceLight,
 		Text = "",
 		TextSize = 14,
@@ -629,13 +705,14 @@ local function makeSlider(parent, y, min, max, step, initial, format, onChanged)
 	end
 
 	function api.release()
+		page.ScrollingEnabled = true
 		tween(knob, 0.15, { Size = UDim2.new(0, 18, 0, 18) })
 	end
 
 	bg.InputBegan:Connect(function(input)
 		if isPress(input) then
 			activeSlider = api
-			content.ScrollingEnabled = false
+			page.ScrollingEnabled = false
 			tween(knob, 0.15, { Size = UDim2.new(0, 22, 0, 22) })
 			api.update(input.Position.X)
 		end
@@ -684,6 +761,27 @@ local function horizontalRow(parent, y, height, alignment)
 			Padding = UDim.new(0, 8),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}),
+	})
+end
+
+-- سطر معلومات (اسم على اليمين وقيمة على اليسار)
+local function statRow(parent, y, name)
+	label(parent, {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, y),
+		Size = UDim2.new(0.55, -14, 0, 18),
+		Text = name,
+		TextColor3 = THEME.SubText,
+		TextSize = 13,
+		Font = FONT_REG,
+		TextXAlignment = Enum.TextXAlignment.Right,
+	})
+	return label(parent, {
+		Position = UDim2.new(0, 14, 0, y),
+		Size = UDim2.new(0.45, -14, 0, 18),
+		Text = "—",
+		TextSize = 13,
+		TextXAlignment = Enum.TextXAlignment.Left,
 	})
 end
 
@@ -780,7 +878,7 @@ end
 
 local function refreshBallCount()
 	if ballCountLabel then
-		ballCountLabel.Text = "الكرات المكتشفة: " .. countBalls()
+		ballCountLabel.Text = tostring(countBalls())
 	end
 end
 
@@ -806,9 +904,6 @@ local function untrackBall(part)
 	props.Box:Destroy()
 	props.Esp:Destroy()
 	props.Tracer:Destroy()
-	for _, dot in ipairs(props.Dots) do
-		dot:Destroy()
-	end
 	trackedBalls[part] = nil
 	refreshBallCount()
 end
@@ -820,7 +915,11 @@ local function addBall(part)
 		Size = part.Size,
 		Transparency = part.Transparency,
 		CanCollide = part.CanCollide,
-		Dots = {},
+		-- الكتلة الأصلية (قبل تكبير الهيتبوكس) لحساب قوة الكرة بدقة
+		Mass = math.max(part.AssemblyMass, 0.01),
+		Calib = Vector3.zero,
+		LastVel = part.AssemblyLinearVelocity,
+		LastVelTime = os.clock(),
 	}
 
 	-- إطار يوضّح حدود الهيتبوكس
@@ -867,19 +966,6 @@ local function addBall(part)
 		Parent = overlay,
 	})
 
-	-- نقاط توقّع المسار
-	for i = 1, CONFIG.PredictionDots do
-		props.Dots[i] = create("Frame", {
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Size = UDim2.new(0, 8, 0, 8),
-			BackgroundColor3 = outlineColor(),
-			BackgroundTransparency = i / (CONFIG.PredictionDots + 2),
-			BorderSizePixel = 0,
-			Visible = false,
-			Parent = overlay,
-		}, { corner(4) })
-	end
-
 	props.Conn = part.AncestryChanged:Connect(function(_, parent)
 		if parent == nil then
 			untrackBall(part)
@@ -925,14 +1011,333 @@ local function drawLine(frame, a, b)
 	frame.Rotation = math.deg(math.atan2(delta.Y, delta.X))
 end
 
-local function hideOverlay(props)
-	props.Tracer.Visible = false
-	for _, dot in ipairs(props.Dots) do
-		dot.Visible = false
+-----------------------------------------------------------
+-- توقّع مسار الشوت (محاكاة فيزيائية)
+-----------------------------------------------------------
+local vizFolder = create("Folder", {
+	Name = "MohammedTN_Prediction",
+	Parent = Workspace.CurrentCamera,
+})
+
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+rayParams.IgnoreWater = true
+
+-- نتجاهل الكرات واللاعبين ورسوماتنا عند فحص الاصطدام
+local function refreshRayFilter()
+	local list = { vizFolder }
+	for part in pairs(trackedBalls) do
+		table.insert(list, part)
+	end
+	for _, name in ipairs({ "Footballs", "Characters" }) do
+		local folder = Workspace:FindFirstChild(name)
+		if folder then
+			table.insert(list, folder)
+		end
+	end
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr.Character then
+			table.insert(list, plr.Character)
+		end
+	end
+	rayParams.FilterDescendantsInstances = list
+end
+
+-- قوة الكرة (BodyForce / VectorForce) مقسومة على كتلتها الأصلية
+local function ballForceAcceleration(part, props)
+	local total = Vector3.zero
+	for _, child in ipairs(part:GetChildren()) do
+		if child:IsA("BodyForce") then
+			total += child.Force
+		elseif child:IsA("VectorForce") and child.Enabled then
+			local force = child.Force
+			if child.RelativeTo == Enum.ActuatorRelativeTo.Attachment0 and child.Attachment0 then
+				force = child.Attachment0.WorldCFrame:VectorToWorldSpace(force)
+			end
+			total += force
+		end
+	end
+	return total / props.Mass
+end
+
+local function modelAcceleration(part, props)
+	return Vector3.new(0, -Workspace.Gravity, 0) + ballForceAcceleration(part, props)
+end
+
+-- معايرة تلقائية: نقارن التسارع الحقيقي بالمحسوب ونصحح الفرق
+local function calibrate(part, props, now)
+	local velocity = part.AssemblyLinearVelocity
+	if velocity == props.LastVel then return end -- ما وصل تحديث جديد من السيرفر
+	local dt = now - props.LastVelTime
+	if dt > 0.005 and dt < 0.25 then
+		local measured = (velocity - props.LastVel) / dt
+		local residual = measured - modelAcceleration(part, props)
+		local P = CONFIG.Prediction
+		if residual.Magnitude < P.CalibrationLimit then
+			props.Calib = props.Calib:Lerp(residual, P.CalibrationRate)
+		else
+			-- اصطدام أو ركلة: نخفف المعايرة بدل ما نخربها
+			props.Calib *= 0.5
+		end
+	end
+	props.LastVel = velocity
+	props.LastVelTime = now
+end
+
+local function networkLag()
+	local ok, ping = pcall(function()
+		return player:GetNetworkPing()
+	end)
+	return ok and math.clamp(ping, 0, 0.5) or 0
+end
+
+-- يحاكي حركة الكرة ويرجع نقاط المسار والأحداث المهمة
+local function simulate(part, props, rootPos)
+	local P = CONFIG.Prediction
+	local step = P.Step
+	local radius = math.min(props.Size.X, props.Size.Y, props.Size.Z) / 2
+	local accel = modelAcceleration(part, props)
+	if state.predictCalibrate then
+		accel += props.Calib
+	end
+
+	local pos = part.Position
+	local vel = part.AssemblyLinearVelocity
+
+	-- تعويض البنق: الكرة الحقيقية متقدمة عن اللي نشوفه
+	if state.predictLag then
+		local lag = networkLag()
+		pos += vel * lag + 0.5 * accel * lag * lag
+		vel += accel * lag
+	end
+
+	-- الكرة على الأرض وتتدحرج: نلغي الجاذبية باتجاه الأرض ونرفعها شوي
+	-- (فحص الاصطدام يتجاهل السطح اللي الكرة لامسته من البداية)
+	local ground = Workspace:Raycast(pos, Vector3.new(0, -(radius + 0.35), 0), rayParams)
+	if ground and ground.Normal.Y > 0.6 and vel:Dot(ground.Normal) < P.SettleSpeed then
+		local normal = ground.Normal
+		accel -= normal * accel:Dot(normal)
+		vel -= normal * math.min(vel:Dot(normal), 0)
+		pos = ground.Position + normal * (radius + 0.05)
+	end
+
+	local physical = part.CurrentPhysicalProperties
+	local elasticity = physical and physical.Elasticity or 0.5
+	local friction = physical and physical.Friction or 0.3
+
+	local result = {
+		Points = { pos },
+		Bounces = {},
+		Landing = nil,    -- { Position, Time, Normal }
+		Closest = nil,    -- { Position, Time, Distance }
+		Start = pos,
+	}
+
+	local t = 0
+	local stepIndex = 0
+	local bounces = 0
+
+	local function checkClosest(point, time)
+		if not rootPos then return end
+		local distance = (point - rootPos).Magnitude
+		if not result.Closest or distance < result.Closest.Distance then
+			result.Closest = { Position = point, Time = time, Distance = distance }
+		end
+	end
+
+	checkClosest(pos, 0)
+
+	while t < state.predictTime do
+		local nextVel = vel + accel * step
+		local move = (vel + nextVel) * 0.5 * step
+		local hit = move.Magnitude > 1e-4 and Workspace:Spherecast(pos, radius, move, rayParams)
+
+		if hit then
+			local fraction = math.clamp(hit.Distance / move.Magnitude, 0, 1)
+			pos += move.Unit * hit.Distance
+			vel += accel * step * fraction
+			t += step * fraction
+			table.insert(result.Points, pos)
+			checkClosest(pos, t)
+
+			local normal = hit.Normal
+			if not result.Landing and normal.Y > 0.6 then
+				result.Landing = { Position = pos - normal * radius, Time = t, Normal = normal }
+			end
+			table.insert(result.Bounces, pos - normal * radius)
+
+			if not state.predictBounces or bounces >= P.MaxBounces then
+				break
+			end
+
+			-- ارتداد: نعكس السرعة العمودية ونخفف الأفقية بالاحتكاك
+			local vn = vel:Dot(normal)
+			if vn < 0 then
+				local normalVel = normal * vn
+				local tangentVel = vel - normalVel
+				vel = tangentVel * (1 - math.clamp(friction, 0, 1) * 0.25) - normalVel * elasticity
+			end
+			if normal.Y > 0.6 and math.abs(vel:Dot(normal)) < P.SettleSpeed then
+				break -- الكرة صارت تتدحرج
+			end
+			pos += normal * 0.02
+			bounces += 1
+		else
+			pos += move
+			vel = nextVel
+			t += step
+			stepIndex += 1
+			if stepIndex % P.PointEvery == 0 then
+				table.insert(result.Points, pos)
+			end
+			checkClosest(pos, t)
+		end
+	end
+
+	table.insert(result.Points, pos)
+	return result
+end
+
+-- مخزن قطع الرسم (نعيد استخدامها بدل ما ننشئ قطع كل فريم)
+local pool = { Segment = {}, Bounce = {}, Landing = {}, Closest = {} }
+local used = { Segment = 0, Bounce = 0, Landing = 0, Closest = 0 }
+
+local function vizPart(shape, size)
+	return create("Part", {
+		Anchored = true,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		CastShadow = false,
+		Locked = true,
+		Material = Enum.Material.Neon,
+		Shape = shape,
+		Size = size,
+		Transparency = 1,
+		Parent = vizFolder,
+	})
+end
+
+local function vizLabel(adornee, offset)
+	local billboard = create("BillboardGui", {
+		Adornee = adornee,
+		AlwaysOnTop = true,
+		Size = UDim2.new(0, 120, 0, 24),
+		StudsOffset = offset,
+		Enabled = false,
+		Parent = vizFolder,
+	})
+	create("Frame", {
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundColor3 = THEME.Background,
+		BackgroundTransparency = 0.2,
+		Parent = billboard,
+	}, { corner(8) })
+	local text = label(billboard, {
+		Size = UDim2.new(1, 0, 1, 0),
+		Text = "",
+		TextSize = 13,
+		ZIndex = 2,
+	})
+	return billboard, text
+end
+
+local factories = {
+	Segment = function()
+		return { Part = vizPart(Enum.PartType.Block, Vector3.new(0.18, 0.18, 1)) }
+	end,
+	Bounce = function()
+		return { Part = vizPart(Enum.PartType.Ball, Vector3.new(0.6, 0.6, 0.6)) }
+	end,
+	Landing = function()
+		local part = vizPart(Enum.PartType.Cylinder, Vector3.new(0.15, 4, 4))
+		local billboard, text = vizLabel(part, Vector3.new(0, 2.5, 0))
+		return { Part = part, Billboard = billboard, Text = text }
+	end,
+	Closest = function()
+		local part = vizPart(Enum.PartType.Ball, Vector3.new(1.1, 1.1, 1.1))
+		local billboard, text = vizLabel(part, Vector3.new(0, 2, 0))
+		return { Part = part, Billboard = billboard, Text = text }
+	end,
+}
+
+local function take(kind)
+	used[kind] += 1
+	local item = pool[kind][used[kind]]
+	if not item then
+		item = factories[kind]()
+		pool[kind][used[kind]] = item
+	end
+	return item
+end
+
+local function hideUnused()
+	for kind, list in pairs(pool) do
+		for i = used[kind] + 1, #list do
+			local item = list[i]
+			item.Part.Transparency = 1
+			if item.Billboard then
+				item.Billboard.Enabled = false
+			end
+		end
+		used[kind] = 0
 	end
 end
 
+local function drawPrediction(result, color)
+	local points = result.Points
+	local count = #points
+	for i = 1, count - 1 do
+		local a, b = points[i], points[i + 1]
+		local length = (b - a).Magnitude
+		if length > 0.05 then
+			local seg = take("Segment").Part
+			seg.Size = Vector3.new(0.18, 0.18, length)
+			seg.CFrame = CFrame.lookAt((a + b) / 2, b)
+			seg.Color = color
+			-- يبهت الخط كل ما بعد في المستقبل
+			seg.Transparency = 0.1 + 0.6 * (i / count)
+		end
+	end
+
+	if state.predictBounces then
+		for _, point in ipairs(result.Bounces) do
+			local bounce = take("Bounce").Part
+			bounce.CFrame = CFrame.new(point)
+			bounce.Color = color
+			bounce.Transparency = 0.25
+		end
+	end
+
+	if state.predictLanding and result.Landing then
+		local marker = take("Landing")
+		local landing = result.Landing
+		marker.Part.CFrame = CFrame.new(landing.Position + landing.Normal * 0.08) * CFrame.Angles(0, 0, math.pi / 2)
+		marker.Part.Color = color
+		marker.Part.Transparency = 0.35
+		marker.Text.Text = string.format("⏱ %.2f ث", landing.Time)
+		marker.Text.TextColor3 = color
+		marker.Billboard.Enabled = true
+	end
+
+	if state.predictClosest and result.Closest and result.Closest.Time > 0.05 then
+		local marker = take("Closest")
+		local closest = result.Closest
+		marker.Part.CFrame = CFrame.new(closest.Position)
+		marker.Part.Color = THEME.Warning
+		marker.Part.Transparency = 0.3
+		marker.Text.Text = string.format("↔ %.1f م • %.2f ث", closest.Distance, closest.Time)
+		marker.Text.TextColor3 = THEME.Warning
+		marker.Billboard.Enabled = true
+	end
+end
+
+-----------------------------------------------------------
+-- الحلقة الرئيسية
+-----------------------------------------------------------
+local predictionLabels = {} -- تُنشأ في صفحة التوقّع
 local lastInfoUpdate = 0
+local lastFilterUpdate = 0
 local alertActive = false
 
 connect(RunService.RenderStepped, function()
@@ -941,10 +1346,21 @@ connect(RunService.RenderStepped, function()
 	local nearest = math.huge
 	local now = os.clock()
 	local pulse = (math.sin(now * 5) + 1) / 2
+	local P = CONFIG.Prediction
+
+	if vizFolder.Parent ~= camera then
+		vizFolder.Parent = camera
+	end
+	if now - lastFilterUpdate > 0.5 then
+		lastFilterUpdate = now
+		refreshRayFilter()
+	end
+
+	local moving = {}
 
 	for part, props in pairs(trackedBalls) do
 		if not part.Parent then
-			hideOverlay(props)
+			props.Tracer.Visible = false
 			continue
 		end
 
@@ -1006,21 +1422,31 @@ connect(RunService.RenderStepped, function()
 			props.Tracer.Visible = false
 		end
 
-		-- توقّع المسار
-		local showPrediction = state.prediction and velocity.Magnitude > 2
-		local gravity = Vector3.new(0, -Workspace.Gravity, 0)
-		for i, dot in ipairs(props.Dots) do
-			if showPrediction then
-				local t = i * CONFIG.PredictionStep
-				local point = part.Position + velocity * t + 0.5 * gravity * t * t
-				local screen = camera:WorldToViewportPoint(point)
-				dot.Visible = screen.Z > 0
-				dot.Position = UDim2.new(0, screen.X, 0, screen.Y)
-			else
-				dot.Visible = false
+		-- المعايرة تشتغل دايماً عشان تكون جاهزة لما تنطلق الكرة
+		calibrate(part, props, now)
+
+		if state.prediction and velocity.Magnitude > P.MinSpeed and (not distance or distance < P.MaxRange) then
+			table.insert(moving, { Part = part, Props = props, Distance = distance or 0, Speed = velocity.Magnitude })
+		end
+	end
+
+	-- توقّع المسار لأقرب الكرات المتحركة
+	local focus
+	if state.prediction then
+		table.sort(moving, function(a, b)
+			return a.Distance < b.Distance
+		end)
+		local color = outlineColor()
+		for i = 1, math.min(#moving, P.MaxBalls) do
+			local entry = moving[i]
+			local result = simulate(entry.Part, entry.Props, rootPos)
+			drawPrediction(result, color)
+			if i == 1 then
+				focus = { Entry = entry, Result = result }
 			end
 		end
 	end
+	hideUnused()
 
 	-- تنبيه قرب الكرة
 	if state.alert and nearest <= state.alertDistance then
@@ -1034,18 +1460,35 @@ connect(RunService.RenderStepped, function()
 	end
 
 	-- تحديث المعلومات
-	if nearestLabel and now - lastInfoUpdate > 0.2 then
+	if now - lastInfoUpdate > 0.15 then
 		lastInfoUpdate = now
-		nearestLabel.Text = nearest < math.huge
-			and string.format("أقرب كرة: %.1f م", nearest)
-			or "أقرب كرة: —"
+		if nearestLabel then
+			nearestLabel.Text = nearest < math.huge and string.format("%.1f م", nearest) or "—"
+		end
+		if predictionLabels.Speed then
+			if focus then
+				local result = focus.Result
+				predictionLabels.Speed.Text = string.format("%.1f", focus.Entry.Speed)
+				predictionLabels.Landing.Text = result.Landing and string.format("%.2f ث", result.Landing.Time) or "—"
+				predictionLabels.Closest.Text = result.Closest
+					and string.format("%.1f م (%.2f ث)", result.Closest.Distance, result.Closest.Time)
+					or "—"
+				predictionLabels.Calib.Text = string.format("%.1f", focus.Entry.Props.Calib.Magnitude)
+			else
+				predictionLabels.Speed.Text = "لا توجد كرة متحركة"
+				predictionLabels.Landing.Text = "—"
+				predictionLabels.Closest.Text = "—"
+				predictionLabels.Calib.Text = "—"
+			end
+			predictionLabels.Ping.Text = string.format("%d ms", math.floor(networkLag() * 1000 + 0.5))
+		end
 	end
 end)
 
 -----------------------------------------------------------
--- القسم: الأساسي
+-- صفحة 1: الهيتبوكس
 -----------------------------------------------------------
-sectionHeader("⚙️ الأساسي")
+newPage(TAB_NAMES[1])
 
 local function statusSuffix()
 	return "  •  اختصار: " .. state.quickKey
@@ -1079,7 +1522,7 @@ local sizeSlider = makeSlider(sizeCard, 48, CONFIG.MinSize, CONFIG.MaxSize, 0.1,
 	scheduleSave()
 end)
 
-local resetBtn = smallButton(sizeCard, "إعادة", UDim2.new(0, 76, 0, 10), UDim2.new(0, 56, 0, 24))
+local resetBtn = smallButton(sizeCard, "إعادة", UDim2.new(0, 80, 0, 10), UDim2.new(0, 56, 0, 24))
 resetBtn.MouseButton1Click:Connect(function()
 	sizeSlider.set(1, true)
 	notify("تمت إعادة الحجم إلى الافتراضي", THEME.Accent2)
@@ -1103,10 +1546,7 @@ end
 
 switchCard("حجم تلقائي حسب المسافة", "يكبر الهيتبوكس كلما ابتعدت الكرة", "autoSize")
 
------------------------------------------------------------
--- القسم: متقدم (تكبير كل اتجاه)
------------------------------------------------------------
-sectionHeader("📐 متقدم")
+sectionHeader("📐 تكبير كل اتجاه")
 
 local axisCard = card(196)
 local axisSliders = {}
@@ -1134,9 +1574,35 @@ axisResetBtn.MouseButton1Click:Connect(function()
 end)
 
 -----------------------------------------------------------
--- القسم: المظهر
+-- صفحة 2: التوقّع
 -----------------------------------------------------------
-sectionHeader("🎨 المظهر")
+newPage(TAB_NAMES[2])
+
+switchCard("توقّع مسار الشوت", "خط ثلاثي الأبعاد يوضح وين رح تروح الكرة", "prediction")
+
+local liveCard = card(146)
+cardHeading(liveCard, "📊 قراءة مباشرة")
+predictionLabels.Speed = statRow(liveCard, 38, "سرعة الكرة")
+predictionLabels.Landing = statRow(liveCard, 58, "تنزل بعد")
+predictionLabels.Closest = statRow(liveCard, 78, "أقرب مرور منك")
+predictionLabels.Calib = statRow(liveCard, 98, "تصحيح المعايرة")
+predictionLabels.Ping = statRow(liveCard, 118, "البنق")
+
+sliderCard("مدة التوقّع (ثانية)", "predictTime", 0.5, 5, 0.25, "%.2f")
+
+sectionHeader("🔬 الدقة")
+switchCard("حساب الارتداد", "يحسب ارتداد الكرة من الأرض والقائم والعارضة", "predictBounces")
+switchCard("تعويض البنق", "يقدّم الكرة لمكانها الحقيقي في السيرفر", "predictLag")
+switchCard("معايرة تلقائية", "يتعلم انحناء الكرة من حركتها ويصحح المسار", "predictCalibrate")
+
+sectionHeader("📍 العلامات")
+switchCard("مكان النزول", "دائرة مكان نزول الكرة مع الوقت", "predictLanding")
+switchCard("أقرب نقطة لك", "وين رح تمر الكرة أقرب شي منك", "predictClosest")
+
+-----------------------------------------------------------
+-- صفحة 3: المظهر
+-----------------------------------------------------------
+newPage(TAB_NAMES[3])
 
 switchCard("إظهار الهيتبوكس", "جعل الكرة شفافة لرؤية الحجم", "showHitbox")
 sliderCard("شفافية الكرة", "transparency", 0, 0.95, 0.05, "%.2f")
@@ -1144,7 +1610,7 @@ switchCard("إطار الهيتبوكس", "خطوط ملوّنة توضّح حد
 switchCard("تأثير النبض", "الإطار يلمع ويتحرك باستمرار", "pulse")
 
 local colorCard = card(84)
-cardHeading(colorCard, "لون الإطار والخطوط")
+cardHeading(colorCard, "لون الإطار والمسار")
 
 local colorRow = horizontalRow(colorCard, 42, 30, Enum.HorizontalAlignment.Right)
 local colorStrokes = {}
@@ -1159,9 +1625,6 @@ local function selectColor(index)
 	for _, props in pairs(trackedBalls) do
 		props.Box.Color3 = color
 		props.Tracer.BackgroundColor3 = color
-		for _, dot in ipairs(props.Dots) do
-			dot.BackgroundColor3 = color
-		end
 	end
 end
 
@@ -1182,402 +1645,6 @@ for i, color in ipairs(CONFIG.OutlineColors) do
 	end)
 end
 
------------------------------------------------------------
--- القسم: أدوات
------------------------------------------------------------
-sectionHeader("🧭 أدوات")
-
-switchCard("مؤشر الكرة", "المسافة والسرعة فوق الكرة من خلف الجدران", "esp")
-switchCard("خط التتبّع", "خط من شخصيتك إلى الكرة", "tracer")
-switchCard("توقّع مسار الكرة", "نقاط توضّح وين رح تروح الكرة", "prediction")
-switchCard("تنبيه قرب الكرة", "صوت وإشعار لما تقترب الكرة منك", "alert")
-sliderCard("مسافة التنبيه", "alertDistance", 5, 50, 1, "%d م")
-
-local nameCard = card(84)
-cardHeading(nameCard, "اسم الكرة في اللعبة")
-
-local nameBox = create("TextBox", {
-	AnchorPoint = Vector2.new(1, 0),
-	Position = UDim2.new(1, -14, 0, 40),
-	Size = UDim2.new(1, -100, 0, 30),
-	BackgroundColor3 = THEME.SurfaceLight,
-	Text = state.ballName,
-	PlaceholderText = "مثال: Ball",
-	PlaceholderColor3 = THEME.SubText,
-	TextColor3 = THEME.Text,
-	TextSize = 14,
-	Font = FONT_BOLD,
-	ClearTextOnFocus = false,
-	Parent = nameCard,
-}, { corner(6), stroke(THEME.Stroke, 1) })
-
-local searchBtn = smallButton(nameCard, "بحث", UDim2.new(0, 14, 0, 40), UDim2.new(0, 66, 0, 30))
-searchBtn.TextSize = 13
-
-local function applyBallName()
-	local name = nameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
-	if name == "" then
-		nameBox.Text = state.ballName
-		return
-	end
-	state.ballName = name
-	scheduleSave()
-	rescan()
-	local n = countBalls()
-	if n > 0 then
-		notify("تم العثور على " .. n .. " كرة باسم " .. name, THEME.Success)
-	else
-		notify("لا توجد كرة باسم " .. name, THEME.Danger)
-	end
-end
-
-searchBtn.MouseButton1Click:Connect(applyBallName)
-nameBox.FocusLost:Connect(function(enterPressed)
-	if enterPressed then
-		applyBallName()
-	end
-end)
-
------------------------------------------------------------
--- القسم: التصدّي التلقائي
------------------------------------------------------------
-sectionHeader("🧤 التصدّي التلقائي")
-
-local saveButtons = {}  -- [kind] = GuiButton
-local picking = nil     -- "stand" أو "dive" أثناء اختيار الزر
-local saveCount = 0
-
--- مسار الزر داخل PlayerGui (لإيجاده مرة ثانية بعد الموت أو إعادة التشغيل)
-local function buttonPath(btn)
-	local names = {}
-	local node = btn
-	while node and node ~= playerGui do
-		table.insert(names, 1, node.Name)
-		node = node.Parent
-	end
-	return node == playerGui and table.concat(names, "/") or ""
-end
-
-local function resolvePath(path)
-	if path == "" then return nil end
-	local node = playerGui
-	for name in string.gmatch(path, "[^/]+") do
-		node = node:FindFirstChild(name)
-		if not node then return nil end
-	end
-	return node:IsA("GuiButton") and node or nil
-end
-
-local function getSaveButton(kind)
-	local btn = saveButtons[kind]
-	if btn and btn.Parent then return btn end
-	btn = resolvePath(state[kind .. "ButtonPath"])
-	saveButtons[kind] = btn
-	return btn
-end
-
--- يضغط زر اللعبة: أولاً عبر getconnections ثم بنقرة وهمية
-local function pressButton(btn)
-	if not btn or not btn.Parent then return end
-	if typeof(getconnections) == "function" then
-		for _, signalName in ipairs({ "Activated", "MouseButton1Click", "MouseButton1Down", "TouchTap" }) do
-			local fired = false
-			pcall(function()
-				for _, conn in ipairs(getconnections(btn[signalName])) do
-					fired = true
-					conn:Fire()
-				end
-			end)
-			if fired then return end
-		end
-	end
-	if VirtualInputManager then
-		pcall(function()
-			local center = btn.AbsolutePosition + btn.AbsoluteSize / 2
-			local layer = btn:FindFirstAncestorWhichIsA("ScreenGui")
-			if not (layer and layer.IgnoreGuiInset) then
-				center += GuiService:GetGuiInset()
-			end
-			VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 0)
-			task.wait(0.05)
-			VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 0)
-		end)
-	end
-end
-
--- أصغر زر من أزرار اللعبة تحت نقطة اللمس
-local function findButtonAt(position)
-	local inset = GuiService:GetGuiInset()
-	for _, offset in ipairs({ Vector2.zero, inset, -inset }) do
-		local best, bestArea = nil, math.huge
-		for _, obj in ipairs(playerGui:GetDescendants()) do
-			if obj:IsA("GuiButton") and obj.Visible and not obj:IsDescendantOf(screenGui) then
-				local layer = obj:FindFirstAncestorWhichIsA("ScreenGui")
-				if layer and layer.Enabled then
-					local p = position + offset
-					if layer.IgnoreGuiInset then
-						p += inset
-					end
-					local a, s = obj.AbsolutePosition, obj.AbsoluteSize
-					local area = s.X * s.Y
-					if p.X >= a.X and p.X <= a.X + s.X and p.Y >= a.Y and p.Y <= a.Y + s.Y and area < bestArea then
-						best, bestArea = obj, area
-					end
-				end
-			end
-		end
-		if best then
-			return best
-		end
-	end
-	return nil
-end
-
-local _, autoSaveSub = switchCard(
-	"تفعيل التصدّي التلقائي",
-	"عدد التصدّيات: 0",
-	"autoSave",
-	function(value)
-		notify(value and "تم تفعيل التصدّي التلقائي 🧤" or "تم إيقاف التصدّي التلقائي", value and THEME.Success or THEME.Danger)
-	end
-)
-
-local pickLabels = {}
-
-local function refreshPickLabels()
-	for kind, lbl in pairs(pickLabels) do
-		local btn = getSaveButton(kind)
-		lbl.Text = btn and ("✓ تم الاختيار: " .. btn.Name) or "لم يتم اختيار زر بعد"
-		lbl.TextColor3 = btn and THEME.Success or THEME.SubText
-	end
-end
-
-local function pickCard(title, kind)
-	local c = card(54)
-	pickLabels[kind] = cardTitle(c, title, "")
-	local pickBtn = smallButton(c, "اختيار", UDim2.new(0, 14, 0, 12), UDim2.new(0, 56, 0, 30))
-	pickBtn.TextSize = 13
-	local testBtn = smallButton(c, "تجربة", UDim2.new(0, 76, 0, 12), UDim2.new(0, 56, 0, 30))
-	testBtn.TextSize = 13
-
-	pickBtn.MouseButton1Click:Connect(function()
-		picking = kind
-		mainFrame.Visible = false
-		notify("اضغط الحين على " .. title .. " في شاشة اللعبة", THEME.Accent2)
-	end)
-
-	testBtn.MouseButton1Click:Connect(function()
-		local btn = getSaveButton(kind)
-		if btn then
-			task.spawn(pressButton, btn)
-			notify("تم ضغط الزر للتجربة", THEME.Accent2)
-		else
-			notify("اختر الزر أولاً", THEME.Danger)
-		end
-	end)
-end
-
-pickCard("زر التصدّي (واقف)", "stand")
-pickCard("زر القفز (زاوية)", "dive")
-refreshPickLabels()
-
-local function finishPicking(position)
-	local kind = picking
-	picking = nil
-	local btn = findButtonAt(position)
-	if btn then
-		saveButtons[kind] = btn
-		state[kind .. "ButtonPath"] = buttonPath(btn)
-		scheduleSave()
-		notify("تم اختيار الزر ✓", THEME.Success)
-	else
-		notify("ما لقيت زر في هذا المكان، جرّب مرة ثانية", THEME.Danger)
-	end
-	refreshPickLabels()
-	task.delay(0.3, function()
-		mainFrame.Visible = state.guiVisible
-	end)
-end
-
--- ريموتات الماب (Remotes.Game.Touch / Touch.Kick / Ragdoll)
-local function findGameRemote(...)
-	local node = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
-	for _, name in ipairs({ ... }) do
-		node = node and node:FindFirstChild(name)
-	end
-	return node
-end
-
--- نفس اللي ترسله اللعبة لما الكرة تلمس يد الحارس
-local function remoteSave(ball, root)
-	local touchRemote = findGameRemote("Game", "Touch")
-	if not touchRemote then return end
-	local kickRemote = touchRemote:FindFirstChild("Kick")
-	local data = {
-		ball,
-		"Save",
-		0.19,
-		{ Right = false, Ground = false, Left = false },
-		root.CFrame,
-		Vector3.zero,
-	}
-	task.spawn(function()
-		pcall(function()
-			touchRemote:InvokeServer(data)
-		end)
-	end)
-	if kickRemote then
-		pcall(function()
-			kickRemote:FireServer(data)
-		end)
-	end
-end
-
--- قفزة نحو مكان وصول الكرة (اللعبة تقفز على جهازك ثم ترسل Ragdoll)
-local function remoteDive(root, offset, t)
-	local flat = Vector3.new(offset.X, 0, offset.Z)
-	if flat.Magnitude < 0.5 then return end
-	local speed = math.clamp(flat.Magnitude / math.max(t, 0.15), 20, 60)
-	root.CFrame = CFrame.lookAt(root.Position, root.Position + flat)
-	root.AssemblyLinearVelocity = flat.Unit * speed + Vector3.new(0, 12, 0)
-	local ragdollRemote = findGameRemote("Game", "Ragdoll")
-	if ragdollRemote then
-		pcall(function()
-			ragdollRemote:FireServer()
-		end)
-	end
-end
-
-switchCard("استخدام الريموت (أدق)", "يرسل التصدّي للسيرفر مباشرة بدون أزرار", "useRemote")
-sliderCard("مسافة مسك الكرة", "saveReach", 2, 15, 0.5, "%.1f")
-switchCard("قفز تلقائي", "يقفز نحو الكرة إذا كانت بعيدة على جنب", "autoDive")
-sliderCard("وقت ردة الفعل (ثانية)", "reactionTime", 0.1, 1, 0.05, "%.2f")
-sliderCard("مدى التصدّي واقف", "standRange", 1, 10, 0.5, "%.1f")
-sliderCard("أقصى مدى للقفز", "diveRange", 4, 30, 1, "%d")
-sliderCard("وقت الانتظار بين كل تصدّي", "saveCooldown", 0.3, 3, 0.1, "%.1f")
-switchCard("توجيه اللاعب نحو الكرة", "يلف اللاعب باتجاه الكرة قبل التصدّي", "faceBall")
-
-local lastSaveTime = 0
-local lastDiveTime = 0
-
-local function faceTowards(root, direction)
-	local flat = Vector3.new(direction.X, 0, direction.Z)
-	if flat.Magnitude > 0.1 then
-		root.CFrame = CFrame.lookAt(root.Position, root.Position + flat)
-	end
-end
-
-local function countSave()
-	saveCount += 1
-	autoSaveSub.Text = "عدد التصدّيات: " .. saveCount
-end
-
-connect(RunService.Heartbeat, function()
-	if not state.autoSave or picking then return end
-	local now = os.clock()
-	if now - lastSaveTime < state.saveCooldown then return end
-
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if not root then return end
-
-	-- best: أخطر كرة قادمة (أقرب وقت وصول) • nearest: أقرب كرة تتحرك نحوك
-	local best, nearest, nearestDistance = nil, nil, math.huge
-	for part in pairs(trackedBalls) do
-		if part.Parent then
-			local velocity = part.AssemblyLinearVelocity
-			local speed = velocity.Magnitude
-			local rel = part.Position - root.Position
-			local distance = rel.Magnitude
-
-			if speed > 3 and rel:Dot(velocity) < 0 and distance < nearestDistance then
-				nearest, nearestDistance = part, distance
-			end
-
-			if speed > 8 then
-				local t = -rel:Dot(velocity) / (speed * speed)
-				if t > 0 and t <= state.reactionTime then
-					local closest = rel + velocity * t
-					local flat = Vector3.new(closest.X, 0, closest.Z)
-					local miss = flat.Magnitude
-					if math.abs(closest.Y) < 12 and miss <= state.diveRange and (not best or t < best.t) then
-						best = { t = t, miss = miss, offset = flat, part = part }
-					end
-				end
-			end
-		end
-	end
-
-	-- طريقة الريموت: نمسك الكرة لما توصل لمسافة المسك
-	if state.useRemote and findGameRemote("Game", "Touch") then
-		if nearest and nearestDistance <= state.saveReach then
-			lastSaveTime = now
-			if state.faceBall then
-				faceTowards(root, nearest.Position - root.Position)
-			end
-			remoteSave(nearest, root)
-			countSave()
-		elseif state.autoDive and best and best.miss > state.standRange and now - lastDiveTime > 1.5 then
-			lastDiveTime = now
-			remoteDive(root, best.offset, best.t)
-		end
-		return
-	end
-
-	-- طريقة الأزرار
-	if not best then return end
-	local standBtn = getSaveButton("stand")
-	local diveBtn = getSaveButton("dive")
-	local btn
-	if best.miss <= state.standRange then
-		btn = standBtn or diveBtn
-	else
-		btn = diveBtn or standBtn
-	end
-	if not btn then return end
-
-	lastSaveTime = now
-	if state.faceBall then
-		faceTowards(root, best.miss > 0.5 and best.offset or (best.part.Position - root.Position))
-	end
-	task.spawn(pressButton, btn)
-	countSave()
-end)
-
------------------------------------------------------------
--- القسم: الإعدادات
------------------------------------------------------------
-sectionHeader("🛠️ الإعدادات")
-
--- تغيير أزرار الاختصار
-local capturing = nil -- { key = "toggleKey", button = btn }
-local keyInfoLabel -- يُنشأ في بطاقة المعلومات
-
-local function refreshKeyInfo()
-	if keyInfoLabel then
-		keyInfoLabel.Text = "الواجهة: " .. state.toggleKey .. "  •  الهيتبوكس: " .. state.quickKey
-	end
-	refreshStatus()
-end
-
-local function keybindCard(title, key)
-	local c = card(54)
-	cardTitle(c, title, "اضغط على الزر ثم اختر مفتاحاً جديداً")
-	local btn = smallButton(c, state[key], UDim2.new(0, 14, 0, 12), UDim2.new(0, 92, 0, 30))
-	btn.TextSize = 13
-	btn.MouseButton1Click:Connect(function()
-		if capturing then
-			capturing.button.Text = state[capturing.key]
-		end
-		capturing = { key = key, button = btn }
-		btn.Text = "اضغط زر..."
-	end)
-end
-
-keybindCard("زر إظهار الواجهة", "toggleKey")
-keybindCard("زر تشغيل الهيتبوكس", "quickKey")
-
--- الثيمات
 local themeCard = card(84)
 cardHeading(themeCard, "ثيم الواجهة")
 
@@ -1627,6 +1694,94 @@ for i, theme in ipairs(CONFIG.Themes) do
 	end)
 end
 
+-----------------------------------------------------------
+-- صفحة 4: أدوات
+-----------------------------------------------------------
+newPage(TAB_NAMES[4])
+
+switchCard("مؤشر الكرة", "المسافة والسرعة فوق الكرة من خلف الجدران", "esp")
+switchCard("خط التتبّع", "خط من شخصيتك إلى الكرة", "tracer")
+switchCard("تنبيه قرب الكرة", "صوت وإشعار لما تقترب الكرة منك", "alert")
+sliderCard("مسافة التنبيه", "alertDistance", 5, 50, 1, "%d م")
+
+local nameCard = card(84)
+cardHeading(nameCard, "اسم الكرة في اللعبة")
+
+local nameBox = create("TextBox", {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -14, 0, 40),
+	Size = UDim2.new(1, -100, 0, 30),
+	BackgroundColor3 = THEME.SurfaceLight,
+	Text = state.ballName,
+	PlaceholderText = "مثال: Ball",
+	PlaceholderColor3 = THEME.SubText,
+	TextColor3 = THEME.Text,
+	TextSize = 14,
+	Font = FONT_BOLD,
+	ClearTextOnFocus = false,
+	Parent = nameCard,
+}, { corner(6), stroke(THEME.Stroke, 1) })
+
+local searchBtn = smallButton(nameCard, "بحث", UDim2.new(0, 14, 0, 40), UDim2.new(0, 66, 0, 30))
+searchBtn.TextSize = 13
+
+local function applyBallName()
+	local name = nameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
+	if name == "" then
+		nameBox.Text = state.ballName
+		return
+	end
+	state.ballName = name
+	scheduleSave()
+	rescan()
+	local n = countBalls()
+	if n > 0 then
+		notify("تم العثور على " .. n .. " كرة باسم " .. name, THEME.Success)
+	else
+		notify("لا توجد كرة باسم " .. name, THEME.Danger)
+	end
+end
+
+searchBtn.MouseButton1Click:Connect(applyBallName)
+nameBox.FocusLost:Connect(function(enterPressed)
+	if enterPressed then
+		applyBallName()
+	end
+end)
+
+-----------------------------------------------------------
+-- صفحة 5: الإعدادات
+-----------------------------------------------------------
+newPage(TAB_NAMES[5])
+
+-- تغيير أزرار الاختصار
+local capturing = nil -- { key = "toggleKey", button = btn }
+local keyInfoLabel -- يُنشأ في بطاقة المعلومات
+
+local function refreshKeyInfo()
+	if keyInfoLabel then
+		keyInfoLabel.Text = state.toggleKey .. " / " .. state.quickKey
+	end
+	refreshStatus()
+end
+
+local function keybindCard(title, key)
+	local c = card(54)
+	cardTitle(c, title, "اضغط على الزر ثم اختر مفتاحاً جديداً")
+	local btn = smallButton(c, state[key], UDim2.new(0, 14, 0, 12), UDim2.new(0, 92, 0, 30))
+	btn.TextSize = 13
+	btn.MouseButton1Click:Connect(function()
+		if capturing then
+			capturing.button.Text = state[capturing.key]
+		end
+		capturing = { key = key, button = btn }
+		btn.Text = "اضغط زر..."
+	end)
+end
+
+keybindCard("زر إظهار الواجهة", "toggleKey")
+keybindCard("زر تشغيل الهيتبوكس", "quickKey")
+
 -- الزر العائم (للجوال)
 local floatingBtn = create("TextButton", {
 	AnchorPoint = Vector2.new(0.5, 0.5),
@@ -1670,45 +1825,13 @@ resetSettingsBtn.MouseButton1Click:Connect(function()
 	notify("تم حذف الإعدادات المحفوظة — أعد تشغيل السكربت", THEME.Accent2)
 end)
 
------------------------------------------------------------
--- القسم: معلومات
------------------------------------------------------------
 sectionHeader("📊 معلومات")
 
-local infoCard = card(84)
+local infoCard = card(86)
+ballCountLabel = statRow(infoCard, 12, "الكرات المكتشفة")
+nearestLabel = statRow(infoCard, 34, "أقرب كرة")
+keyInfoLabel = statRow(infoCard, 56, "الواجهة / الهيتبوكس")
 
-ballCountLabel = label(infoCard, {
-	AnchorPoint = Vector2.new(1, 0),
-	Position = UDim2.new(1, -14, 0, 10),
-	Size = UDim2.new(1, -28, 0, 18),
-	Text = "الكرات المكتشفة: 0",
-	TextSize = 13,
-	TextXAlignment = Enum.TextXAlignment.Right,
-})
-
-nearestLabel = label(infoCard, {
-	AnchorPoint = Vector2.new(1, 0),
-	Position = UDim2.new(1, -14, 0, 32),
-	Size = UDim2.new(1, -28, 0, 18),
-	Text = "أقرب كرة: —",
-	TextSize = 13,
-	TextXAlignment = Enum.TextXAlignment.Right,
-})
-
-keyInfoLabel = label(infoCard, {
-	AnchorPoint = Vector2.new(1, 0),
-	Position = UDim2.new(1, -14, 0, 56),
-	Size = UDim2.new(1, -28, 0, 16),
-	Text = "",
-	TextColor3 = THEME.SubText,
-	TextSize = 12,
-	Font = FONT_REG,
-	TextXAlignment = Enum.TextXAlignment.Right,
-})
-
------------------------------------------------------------
--- القسم: عن السكربت
------------------------------------------------------------
 sectionHeader("ℹ️ عن السكربت")
 
 local links = {}
@@ -1838,7 +1961,6 @@ connect(UserInputService.InputEnded, function(input)
 		if activeSlider then
 			activeSlider.release()
 			activeSlider = nil
-			content.ScrollingEnabled = true
 		end
 		if floatPressed and not floatMoved then
 			setVisible(not state.guiVisible)
@@ -1849,12 +1971,6 @@ connect(UserInputService.InputEnded, function(input)
 end)
 
 connect(UserInputService.InputBegan, function(input, gameProcessed)
-	-- اختيار زر التصدّي من شاشة اللعبة
-	if picking and isPress(input) then
-		finishPicking(Vector2.new(input.Position.X, input.Position.Y))
-		return
-	end
-
 	-- التقاط زر اختصار جديد
 	if capturing and input.UserInputType == Enum.UserInputType.Keyboard then
 		local c = capturing
@@ -1894,6 +2010,9 @@ local function cleanup()
 		c:Disconnect()
 	end
 	table.clear(connections)
+	if vizFolder then
+		vizFolder:Destroy()
+	end
 	if screenGui then
 		screenGui:Destroy()
 	end
@@ -1912,8 +2031,10 @@ end)
 -----------------------------------------------------------
 selectColor(state.colorIndex)
 applyTheme(state.themeIndex)
+selectTab(math.clamp(math.floor(state.activeTab), 1, TAB_COUNT), false)
 scanForBalls()
 refreshBallCount()
+refreshRayFilter()
 refreshKeyInfo()
 setVisible(true)
-notify("مرحباً! تم تحميل السكربت — صنع من قبل " .. CONFIG.Author, THEME.Accent)
+notify("مرحباً! تم تحميل السكربت " .. CONFIG.Version .. " — صنع من قبل " .. CONFIG.Author, THEME.Accent)
