@@ -121,6 +121,7 @@ local state = {
 	predictCalibrate = true,
 	predictLanding = true,
 	predictClosest = true,
+	predictLabels = true,
 	alert = false,
 	alertDistance = 15,
 	toggleKey = "RightShift",
@@ -139,7 +140,7 @@ local SAVED_KEYS = {
 	"ballName", "size", "autoSize", "axisX", "axisY", "axisZ", "showHitbox",
 	"transparency", "outline", "colorIndex", "pulse", "esp", "tracer",
 	"prediction", "predictTime", "predictBounces", "predictLag", "predictCalibrate",
-	"predictLanding", "predictClosest", "alert", "alertDistance", "toggleKey",
+	"predictLanding", "predictClosest", "predictLabels", "alert", "alertDistance", "toggleKey",
 	"quickKey", "themeIndex", "floatingButton", "activeTab",
 }
 
@@ -1221,8 +1222,11 @@ end
 local function vizLabel(adornee, offset)
 	local billboard = create("BillboardGui", {
 		Adornee = adornee,
-		AlwaysOnTop = true,
-		Size = UDim2.new(0, 120, 0, 24),
+		-- ما نرسمها فوق كل شي عشان ما تغطي الكرة
+		AlwaysOnTop = false,
+		LightInfluence = 0,
+		MaxDistance = 220,
+		Size = UDim2.new(0, 96, 0, 20),
 		StudsOffset = offset,
 		Enabled = false,
 		Parent = vizFolder,
@@ -1230,13 +1234,13 @@ local function vizLabel(adornee, offset)
 	create("Frame", {
 		Size = UDim2.new(1, 0, 1, 0),
 		BackgroundColor3 = THEME.Background,
-		BackgroundTransparency = 0.2,
+		BackgroundTransparency = 0.35,
 		Parent = billboard,
-	}, { corner(8) })
+	}, { corner(6) })
 	local text = label(billboard, {
 		Size = UDim2.new(1, 0, 1, 0),
 		Text = "",
-		TextSize = 13,
+		TextSize = 11,
 		ZIndex = 2,
 	})
 	return billboard, text
@@ -1284,13 +1288,15 @@ local function hideUnused()
 	end
 end
 
-local function drawPrediction(result, color)
+local function drawPrediction(result, color, showLabels, ballPos, clearRadius)
 	local points = result.Points
 	local count = #points
 	for i = 1, count - 1 do
 		local a, b = points[i], points[i + 1]
 		local length = (b - a).Magnitude
-		if length > 0.05 then
+		-- ما نرسم داخل الكرة نفسها عشان تبان واضحة
+		local insideBall = (a - ballPos).Magnitude < clearRadius and (b - ballPos).Magnitude < clearRadius
+		if length > 0.05 and not insideBall then
 			local seg = take("Segment").Part
 			seg.Size = Vector3.new(0.18, 0.18, length)
 			seg.CFrame = CFrame.lookAt((a + b) / 2, b)
@@ -1317,18 +1323,20 @@ local function drawPrediction(result, color)
 		marker.Part.Transparency = 0.35
 		marker.Text.Text = string.format("⏱ %.2f ث", landing.Time)
 		marker.Text.TextColor3 = color
-		marker.Billboard.Enabled = true
+		marker.Billboard.Enabled = showLabels
 	end
 
-	if state.predictClosest and result.Closest and result.Closest.Time > 0.05 then
+	local closest = result.Closest
+	if state.predictClosest and closest and closest.Time > 0.05
+		and (closest.Position - ballPos).Magnitude > clearRadius
+	then
 		local marker = take("Closest")
-		local closest = result.Closest
 		marker.Part.CFrame = CFrame.new(closest.Position)
 		marker.Part.Color = THEME.Warning
 		marker.Part.Transparency = 0.3
 		marker.Text.Text = string.format("↔ %.1f م • %.2f ث", closest.Distance, closest.Time)
 		marker.Text.TextColor3 = THEME.Warning
-		marker.Billboard.Enabled = true
+		marker.Billboard.Enabled = showLabels
 	end
 end
 
@@ -1405,6 +1413,8 @@ connect(RunService.RenderStepped, function()
 		local velocity = part.AssemblyLinearVelocity
 		props.Esp.Enabled = state.esp
 		if state.esp then
+			-- المؤشر دايماً فوق الكرة حتى لو الهيتبوكس كبير
+			props.Esp.StudsOffset = Vector3.new(0, part.Size.Y / 2 + 1.5, 0)
 			props.EspLabel.Text = string.format(
 				"⚽ %s م  •  ⚡ %.0f",
 				distance and string.format("%.1f", distance) or "—",
@@ -1440,7 +1450,11 @@ connect(RunService.RenderStepped, function()
 		for i = 1, math.min(#moving, P.MaxBalls) do
 			local entry = moving[i]
 			local result = simulate(entry.Part, entry.Props, rootPos)
-			drawPrediction(result, color)
+			local part = entry.Part
+			-- الكتابات بس للكرة الأقرب عشان ما تزحم الشاشة
+			local showLabels = state.predictLabels and i == 1
+			local clearRadius = math.max(part.Size.X, part.Size.Y, part.Size.Z) * 0.6 + 0.5
+			drawPrediction(result, color, showLabels, part.Position, clearRadius)
 			if i == 1 then
 				focus = { Entry = entry, Result = result }
 			end
@@ -1598,6 +1612,7 @@ switchCard("معايرة تلقائية", "يتعلم انحناء الكرة م
 sectionHeader("📍 العلامات")
 switchCard("مكان النزول", "دائرة مكان نزول الكرة مع الوقت", "predictLanding")
 switchCard("أقرب نقطة لك", "وين رح تمر الكرة أقرب شي منك", "predictClosest")
+switchCard("إظهار الكتابات", "الوقت والمسافة فوق العلامات", "predictLabels")
 
 -----------------------------------------------------------
 -- صفحة 3: المظهر
