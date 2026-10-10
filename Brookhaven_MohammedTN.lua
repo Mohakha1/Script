@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        🏡  Brookhaven Hub  🏡             ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v1.5                     ║
+	║                 v2.0                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift
@@ -36,7 +36,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -----------------------------------------------------------
 local CONFIG = {
 	Name = "Brookhaven Hub",
-	Version = "v1.5",
+	Version = "v2.0",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Brookhaven.json",
 	Width = 690,
@@ -116,9 +116,10 @@ local state = {
 	maxZoom = false, firstPerson = false,
 	lowGraphics = false, xray = false, fpsUnlock = false, fpsCap = 240,
 	trail = false, musicId = "", musicVolume = 0.6,
+	deleteMode = false,
 	flyKey = "F", noclipKey = "N", screenshotKey = "P",
 	-- السكنات
-	wearSig = 0, outfits = {},
+	wearSig = 0, outfits = {}, colorSig = 0, bundleSig = 0,
 
 	-- غير محفوظة
 	guiVisible = true,
@@ -133,7 +134,7 @@ local SAVED_KEYS = {
 	"showStats", "blur", "themeIndex", "activePage", "toggleKey", "floatingButton",
 	"tpWalkSpeed", "autoJump", "gravity", "freecamSpeed", "maxZoom", "firstPerson",
 	"fpsUnlock", "fpsCap", "trail", "musicId", "musicVolume", "flyKey", "noclipKey", "screenshotKey",
-	"wearSig", "outfits",
+	"wearSig", "outfits", "colorSig", "bundleSig",
 }
 
 local canSave = typeof(writefile) == "function" and typeof(readfile) == "function" and typeof(isfile) == "function"
@@ -877,6 +878,8 @@ end
 
 -- مفتاح تشغيل مربوط بقيمة في state
 local switches = {}
+local toggleCallbacks = {}
+local sliders = {}
 local function toggle(title, desc, key, onChange)
 	local c = card(54, title .. " " .. (desc or ""))
 	titles(c, title, desc)
@@ -888,6 +891,7 @@ local function toggle(title, desc, key, onChange)
 		end
 	end)
 	switches[key] = sw
+	toggleCallbacks[key] = onChange
 	return sw
 end
 
@@ -996,6 +1000,7 @@ local function slider(title, key, min, max, step, format, onChange)
 		end
 	end)
 	api.set(state[key], true)
+	sliders[key] = api
 	return api
 end
 
@@ -1829,6 +1834,693 @@ function S.wearOutfit(outfit, statusLabel)
 	end)
 end
 
+-- كتالوج قطع جاهزة (كل الأرقام متأكد منها من موقع Roblox)
+S.Catalog = {
+	{ Name = "💇 شعر", Items = {
+		{ "Belle Of Belfast", 2956239660 }, { "Pal Hair", 63690008 }, { "True Blue", 451221329 },
+		{ "Beanie + Hair", 1103003368 }, { "Beautiful Hair", 16630147 }, { "Straight Blonde", 376526888 },
+		{ "Chestnut Bun", 62724852 },
+	} },
+	{ Name = "😀 وجوه", Items = {
+		{ "Smile", 144075659 }, { "Chill", 7074764 }, { "Winning Smile", 616380929 },
+		{ "Joyful Smile", 209995366 }, { ":3", 15432080 }, { "Shocked", 147144644 },
+		{ "Laughing Fun", 226217449 }, { "Silly Fun", 7699174 }, { "Stitchface", 8329679 },
+		{ "Prankster", 20052135 }, { "Err...", 20418658 }, { "YAAAWWN", 162068415 },
+	} },
+	{ Name = "👑 تيجان", Items = {
+		{ "Dominus", 21070012 }, { "Valkyrie", 1365767 }, { "Holiday Crown", 139152472 },
+		{ "Rose Crown", 4998742293 }, { "8-Bit Crown", 10159600649 }, { "Gold Star", 95907863633330 },
+	} },
+	{ Name = "🪽 أجنحة", Items = {
+		{ "Angel Wings", 192557913 }, { "Gamer Wings", 5313324044 }, { "Black Wings", 215719598 },
+		{ "Devil Wings", 4876357616 }, { "Void Wings", 6472661790 }, { "Purity Wings", 6503401221 },
+	} },
+	{ Name = "👕 قمصان", Items = {
+		{ "Motorcycle", 144076358 }, { "Denim Jacket", 144076436 }, { "Roblox Shirt", 3670737444 },
+		{ "Blue Plaid", 398635081 }, { "Teal Shirt", 382537702 }, { "I <3 Pizza", 382537085 },
+	} },
+	{ Name = "👖 بناطيل", Items = {
+		{ "Ripped Skater", 398635338 }, { "Dark Pants", 97118097068276 }, { "Cargo Grey", 12598481285 },
+		{ "Pink Skirt", 106532575969759 }, { "Argyle Denim", 8187078621 }, { "Butterfly Ripped", 7001843110 },
+	} },
+	{ Name = "🧢 قبعات", Items = {
+		{ "Red Cap", 48474313 }, { "Roblox Cap", 607702162 }, { "'R' Cap", 417457461 },
+		{ "Butterfly Hat", 4849184439 }, { "Bighead", 1048037 }, { "Aviators", 376526673 },
+	} },
+}
+
+-- أطقم كاملة جاهزة
+S.Presets = {
+	{ name = "😎 كول", ids = { 451221329, 7074764, 144076358, 398635338, 376526673 } },
+	{ name = "👑 ملكي", ids = { 139152472, 16630147, 616380929, 144076436, 398635338, 192557913 } },
+	{ name = "😈 شيطان", ids = { 4876357616, 8329679, 1103003368, 398635081, 97118097068276 } },
+	{ name = "😇 ملاك", ids = { 6503401221, 376526888, 209995366, 382537702, 398635338 } },
+	{ name = "🎮 قيمر", ids = { 5313324044, 63690008, 20052135, 3670737444, 12598481285 } },
+	{ name = "💖 كيوت", ids = { 2956239660, 226217449, 4849184439, 382537085, 106532575969759 } },
+	{ name = "🖤 دارك", ids = { 6472661790, 1103003368, 147144644, 144076358, 12598481285 } },
+	{ name = "⚔️ محارب", ids = { 1365767, 63690008, 7317793, 144076436, 398635338 } },
+}
+
+-- بكجات أجسام (Bundles)
+S.Bundles = {
+	{ "🦴 Korblox", 192 }, { "🎃 Headless", 201 }, { "🤖 Cyborg", 1 },
+	{ "🦸 26th Century", 2 }, { "⚔️ Cratus", 412 }, { "🧍 ROBLOX Boy", 109 }, { "👨 Man", 238 },
+}
+
+-- ألوان البشرة
+S.SkinTones = {
+	Color3.fromRGB(255, 204, 153), Color3.fromRGB(234, 184, 146), Color3.fromRGB(204, 142, 105),
+	Color3.fromRGB(160, 95, 53), Color3.fromRGB(105, 64, 40), Color3.fromRGB(248, 248, 248),
+	Color3.fromRGB(90, 165, 70), Color3.fromRGB(13, 105, 172),
+}
+
+S.BodyFields = { "Head", "Torso", "LeftArm", "RightArm", "LeftLeg", "RightLeg" }
+
+function S.bodySnapshot()
+	local desc = S.description()
+	if not desc then return "" end
+	local parts = {}
+	for _, field in ipairs(S.BodyFields) do
+		table.insert(parts, tostring(desc[field]))
+	end
+	return table.concat(parts, ",")
+end
+
+-- يجرّب كم طريقة لين يتغير شي، ويحفظ الطريقة اللي اشتغلت
+function S.tryAll(signatures, savedKey, call, verify, timeout)
+	local order = {}
+	local saved = state[savedKey]
+	if saved > 0 and signatures[saved] then
+		table.insert(order, saved)
+	end
+	for i = 1, #signatures do
+		if i ~= saved then
+			table.insert(order, i)
+		end
+	end
+	for _, index in ipairs(order) do
+		pcall(call, signatures[index])
+		if S.waitFor(verify, timeout or 1.6) then
+			if state[savedKey] ~= index then
+				state[savedKey] = index
+				scheduleSave()
+			end
+			return true
+		end
+	end
+	return false
+end
+
+S.BundleSignatures = {
+	function(remote, id) return remote:InvokeServer(id) end,
+	function(remote, id) return remote:InvokeServer(tostring(id)) end,
+	function(remote, id) return remote:InvokeServer({ id }) end,
+}
+
+function S.wearBundle(bundle)
+	if S.busy then return end
+	local remote = S.remote("WearBundle")
+	if not remote then
+		notify("ما لقيت ريموت البكجات", THEME.Danger, "⚠️")
+		return
+	end
+	S.busy = true
+	task.spawn(function()
+		local before = S.bodySnapshot()
+		local ok = S.tryAll(S.BundleSignatures, "bundleSig", function(sig)
+			return sig(remote, bundle[2])
+		end, function()
+			return S.bodySnapshot() ~= before
+		end, 2.5)
+		S.busy = false
+		notify(ok and ("لبست " .. bundle[1] .. " ✓") or ("ما قدرت ألبس " .. bundle[1]), ok and THEME.Success or THEME.Danger, "🦴")
+	end)
+end
+
+S.ColorSignatures = {
+	function(remote, color) return remote:FireServer(BrickColor.new(color)) end,
+	function(remote, color) return remote:FireServer(color) end,
+	function(remote, color) return remote:FireServer(BrickColor.new(color).Color) end,
+	function(remote, color) return remote:FireServer("All", BrickColor.new(color)) end,
+}
+
+function S.setSkinColor(color)
+	local remote = S.remote("ChangeBodyColor")
+	if not remote then
+		notify("ما لقيت ريموت لون البشرة", THEME.Danger, "⚠️")
+		return
+	end
+	task.spawn(function()
+		local target = BrickColor.new(color).Color
+		local ok = S.tryAll(S.ColorSignatures, "colorSig", function(sig)
+			return sig(remote, color)
+		end, function()
+			local desc = S.description()
+			if not desc then return false end
+			local c = desc.HeadColor
+			return math.abs(c.R - target.R) + math.abs(c.G - target.G) + math.abs(c.B - target.B) < 0.12
+		end)
+		notify(ok and "تم تغيير لون البشرة ✓" or "ما قدرت أغيّر اللون", ok and THEME.Success or THEME.Danger, "🎨")
+	end)
+end
+
+function S.randomOutfit(statusLabel)
+	local function pick(categoryIndex)
+		local items = S.Catalog[categoryIndex].Items
+		return items[math.random(1, #items)][2]
+	end
+	-- شعر، وجه، قميص، بنطلون، + قطعة من التيجان أو الأجنحة أو القبعات
+	local extra = ({ 3, 4, 7 })[math.random(1, 3)]
+	S.wearOutfit({ name = "عشوائي", ids = { pick(1), pick(2), pick(5), pick(6), pick(extra) } }, statusLabel)
+end
+
+-----------------------------------------------------------
+-- مميزات إضافية
+-----------------------------------------------------------
+local M = {}
+M.defaultGravity = Workspace.Gravity
+M.defaultZoom = player.CameraMaxZoomDistance
+M.defaultCameraMode = player.CameraMode
+
+-- نغيّر مفتاح ونحدّث زرّه وننفّذ اللي مربوط فيه
+function M.setToggle(key, value)
+	state[key] = value
+	if switches[key] then
+		switches[key].set(value, true)
+	end
+	local callback = toggleCallbacks[key]
+	if callback then
+		callback(value)
+	end
+	scheduleSave()
+end
+
+function M.setSlider(key, value)
+	if sliders[key] then
+		sliders[key].set(value)
+	else
+		state[key] = value
+		scheduleSave()
+	end
+end
+
+function M.updateVerticalControls()
+	flyControls.Visible = UserInputService.TouchEnabled
+		and (state.fly or state.carFly or state.hover or M.freecam == true)
+end
+
+function M.applyGravity()
+	Workspace.Gravity = state.gravityOn and state.gravity or M.defaultGravity
+end
+
+function M.applyCamera()
+	player.CameraMaxZoomDistance = state.maxZoom and 5000 or M.defaultZoom
+	player.CameraMode = state.firstPerson and Enum.CameraMode.LockFirstPerson or M.defaultCameraMode
+end
+
+function M.applyFpsCap()
+	if typeof(setfpscap) == "function" then
+		pcall(setfpscap, state.fpsUnlock and state.fpsCap or 60)
+	elseif state.fpsUnlock then
+		notify("الـ Executor ما يدعم فك حد الـ FPS", THEME.Danger, "⚠️")
+	end
+end
+
+-- المشي بالهوا + المشي السريع + القفز التلقائي
+M.hoverY = nil
+connect(RunService.Heartbeat, function(dt)
+	local _, humanoid, root = getCharacter()
+	if not humanoid or not root then return end
+
+	if state.hover and not F.flying and not humanoid.SeatPart then
+		M.hoverY = M.hoverY or root.Position.Y
+		local vertical = verticalInput
+		if UserInputService:IsKeyDown(Enum.KeyCode.E) then
+			vertical = 1
+		elseif UserInputService:IsKeyDown(Enum.KeyCode.Q) then
+			vertical = -1
+		end
+		M.hoverY += vertical * 25 * dt
+		local velocity = root.AssemblyLinearVelocity
+		root.AssemblyLinearVelocity = Vector3.new(velocity.X, 0, velocity.Z)
+		root.CFrame += Vector3.new(0, M.hoverY - root.Position.Y, 0)
+	else
+		M.hoverY = nil
+	end
+
+	if state.tpWalk and not F.flying and humanoid.MoveDirection.Magnitude > 0 then
+		root.CFrame += humanoid.MoveDirection * state.tpWalkSpeed * 10 * dt
+	end
+
+	if state.autoJump and humanoid.MoveDirection.Magnitude > 0 and humanoid.FloorMaterial ~= Enum.Material.Air then
+		humanoid.Jump = true
+	end
+
+	-- الكاميرا الحرّة: الشخصية تثبت مكانها
+	if M.freecam then
+		humanoid.WalkSpeed = 0
+		humanoid.Jump = false
+	end
+end)
+
+-- الكاميرا الحرّة
+M.freecam = false
+M.camPos, M.yaw, M.pitch = Vector3.zero, 0, 0
+M.rotating, M.rotateTouch = false, nil
+
+function M.setFreecam(on)
+	local camera = Workspace.CurrentCamera
+	M.freecam = on
+	local _, humanoid = getCharacter()
+	if on then
+		local look = camera.CFrame.LookVector
+		M.camPos = camera.CFrame.Position
+		M.yaw = math.atan2(-look.X, -look.Z)
+		M.pitch = math.asin(math.clamp(look.Y, -1, 1))
+		camera.CameraType = Enum.CameraType.Scriptable
+	else
+		camera.CameraType = Enum.CameraType.Custom
+		if humanoid then
+			camera.CameraSubject = humanoid
+		end
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		F.restoreMovement()
+	end
+	M.updateVerticalControls()
+end
+
+function M.rotate(delta)
+	M.yaw -= delta.X * 0.0045
+	M.pitch = math.clamp(M.pitch - delta.Y * 0.0045, -1.45, 1.45)
+end
+
+connect(RunService.RenderStepped, function(dt)
+	if not M.freecam then return end
+	local camera = Workspace.CurrentCamera
+	local rotation = CFrame.fromOrientation(M.pitch, M.yaw, 0)
+	camera.CFrame = CFrame.new(M.camPos) * rotation
+	M.camPos += F.flyVelocity(state.freecamSpeed) * dt
+	camera.CFrame = CFrame.new(M.camPos) * rotation
+end)
+
+connect(UserInputService.InputBegan, function(input, gameProcessed)
+	if not M.freecam then return end
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		M.rotating = true
+		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+	elseif input.UserInputType == Enum.UserInputType.Touch and not gameProcessed then
+		M.rotateTouch = input
+	end
+end)
+connect(UserInputService.InputChanged, function(input)
+	if not M.freecam then return end
+	if input.UserInputType == Enum.UserInputType.MouseMovement and M.rotating then
+		M.rotate(input.Delta)
+	elseif input == M.rotateTouch then
+		M.rotate(input.Delta)
+	end
+end)
+connect(UserInputService.InputEnded, function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		M.rotating = false
+		if M.freecam then
+			UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		end
+	elseif input == M.rotateTouch then
+		M.rotateTouch = nil
+	end
+end)
+
+-- معزّز الـ FPS (جرافيكس خفيف)
+M.graphicsBackup = {}
+M.graphicsBusy = false
+M.EffectClasses = { ParticleEmitter = true, Trail = true, Smoke = true, Fire = true, Sparkles = true, Beam = true }
+
+function M.applyLowGraphics()
+	if M.graphicsBusy then return end
+	M.graphicsBusy = true
+	task.spawn(function()
+		local count = 0
+		if state.lowGraphics then
+			pcall(function()
+				settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+			end)
+			Lighting.GlobalShadows = false
+			for _, obj in ipairs(Workspace:GetDescendants()) do
+				if not state.lowGraphics then break end
+				if obj:IsA("BasePart") then
+					if obj.Material ~= Enum.Material.SmoothPlastic or obj.Reflectance > 0 then
+						M.graphicsBackup[obj] = { obj.Material, obj.Reflectance }
+						obj.Material = Enum.Material.SmoothPlastic
+						obj.Reflectance = 0
+					end
+				elseif (obj:IsA("Decal") or obj:IsA("Texture")) and obj.Name ~= "face" then
+					M.graphicsBackup[obj] = obj.Transparency
+					obj.Transparency = 1
+				elseif M.EffectClasses[obj.ClassName] then
+					M.graphicsBackup[obj] = obj.Enabled
+					obj.Enabled = false
+				end
+				count += 1
+				if count % 3000 == 0 then
+					task.wait()
+				end
+			end
+			notify("معزّز الـ FPS شغّال ⚡", THEME.Success, "⚡")
+		else
+			for obj, backup in pairs(M.graphicsBackup) do
+				if obj.Parent then
+					if obj:IsA("BasePart") then
+						obj.Material = backup[1]
+						obj.Reflectance = backup[2]
+					elseif obj:IsA("Decal") or obj:IsA("Texture") then
+						obj.Transparency = backup
+					else
+						obj.Enabled = backup
+					end
+				end
+				count += 1
+				if count % 3000 == 0 then
+					task.wait()
+				end
+			end
+			table.clear(M.graphicsBackup)
+			pcall(function()
+				settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
+			end)
+			if not state.fullbright then
+				Lighting.GlobalShadows = F.lightingBackup.GlobalShadows
+			end
+		end
+		M.graphicsBusy = false
+	end)
+end
+
+-- الرؤية من خلال الجدران (عندك بس)
+function M.applyXray()
+	task.spawn(function()
+		local value = state.xray and 0.65 or 0
+		local count = 0
+		for _, part in ipairs(Workspace:GetDescendants()) do
+			if part:IsA("BasePart") and not (part.Parent and part.Parent:FindFirstChildOfClass("Humanoid")) then
+				part.LocalTransparencyModifier = value
+			end
+			count += 1
+			if count % 4000 == 0 then
+				task.wait()
+			end
+		end
+	end)
+end
+
+-- الحذف بالضغط (عندك بس)
+M.deleteMode = false
+M.deleted = {}
+function M.deleteAt(position)
+	local camera = Workspace.CurrentCamera
+	local ray = camera:ScreenPointToRay(position.X, position.Y)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { player.Character }
+	local hit = Workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
+	if hit and hit.Instance and not hit.Instance:IsA("Terrain") then
+		local part = hit.Instance
+		if part.Parent and part.Parent:FindFirstChildOfClass("Humanoid") then return end
+		table.insert(M.deleted, { part, part.Parent })
+		part.Parent = nil
+	end
+end
+function M.restoreDeleted()
+	for _, entry in ipairs(M.deleted) do
+		pcall(function()
+			entry[1].Parent = entry[2]
+		end)
+	end
+	table.clear(M.deleted)
+end
+
+-- ذيل ملوّن (عندك بس)
+M.trailParts = {}
+function M.applyTrail()
+	for _, obj in ipairs(M.trailParts) do
+		obj:Destroy()
+	end
+	table.clear(M.trailParts)
+	local _, _, root = getCharacter()
+	if not (state.trail and root) then return end
+	local a0 = create("Attachment", { Position = Vector3.new(0, 1, 0), Parent = root })
+	local a1 = create("Attachment", { Position = Vector3.new(0, -1, 0), Parent = root })
+	local trail = create("Trail", {
+		Attachment0 = a0,
+		Attachment1 = a1,
+		Lifetime = 0.7,
+		LightEmission = 1,
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 60, 60)),
+			ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 200, 40)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(60, 220, 120)),
+			ColorSequenceKeypoint.new(0.75, Color3.fromRGB(40, 160, 255)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 80, 255)),
+		}),
+		Transparency = NumberSequence.new(0.1, 1),
+		Parent = root,
+	})
+	M.trailParts = { a0, a1, trail }
+end
+connect(player.CharacterAdded, function()
+	task.wait(1)
+	M.applyTrail()
+end)
+
+-- مشغّل الموسيقى (عندك بس)
+M.music = create("Sound", { Looped = true, Volume = state.musicVolume, Parent = screenGui })
+function M.playMusic(id)
+	id = tostring(id):gsub("%D", "")
+	if id == "" then
+		notify("اكتب رقم الأغنية", THEME.Danger, "⚠️")
+		return
+	end
+	state.musicId = id
+	scheduleSave()
+	M.music.SoundId = "rbxassetid://" .. id
+	M.music.Volume = state.musicVolume
+	M.music:Play()
+	notify("تشغيل الأغنية " .. id .. " 🎵", THEME.Success, "🎵")
+end
+function M.stopMusic()
+	M.music:Stop()
+end
+
+-- وضع التصوير: يخفي كل الواجهات
+M.screenshot = false
+M.hiddenGuis = {}
+M.screenshotButton = create("TextButton", {
+	Position = UDim2.new(0, 10, 0, 10),
+	Size = UDim2.new(0, 36, 0, 36),
+	BackgroundColor3 = Color3.new(0, 0, 0),
+	BackgroundTransparency = 0.7,
+	Text = "👁",
+	TextSize = 18,
+	Font = FONT_BOLD,
+	Visible = false,
+	Parent = create("ScreenGui", {
+		Name = "MohammedTN_Screenshot",
+		ResetOnSpawn = false,
+		DisplayOrder = 999,
+		Parent = playerGui,
+	}),
+}, { corner(18) })
+
+function M.setScreenshot(on)
+	M.screenshot = on
+	local starterGui = game:GetService("StarterGui")
+	if on then
+		for _, gui in ipairs(playerGui:GetChildren()) do
+			if gui:IsA("ScreenGui") and gui.Enabled and gui ~= M.screenshotButton.Parent then
+				gui.Enabled = false
+				table.insert(M.hiddenGuis, gui)
+			end
+		end
+		pcall(function()
+			starterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
+		end)
+		M.screenshotButton.Visible = true
+	else
+		for _, gui in ipairs(M.hiddenGuis) do
+			if gui.Parent then
+				gui.Enabled = true
+			end
+		end
+		table.clear(M.hiddenGuis)
+		pcall(function()
+			starterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
+		end)
+		M.screenshotButton.Visible = false
+	end
+end
+M.screenshotButton.MouseButton1Click:Connect(function()
+	M.setScreenshot(false)
+end)
+
+-- السيرفرات
+function M.serverHop(lowest)
+	notify(lowest and "أدوّر على أقل سيرفر..." or "أدوّر على سيرفر ثاني...", THEME.Accent2, "🌐")
+	task.spawn(function()
+		local ok, body = pcall(function()
+			return game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+		end)
+		local decoded, data = false, nil
+		if ok then
+			decoded, data = pcall(function()
+				return HttpService:JSONDecode(body)
+			end)
+		end
+		if not decoded or type(data) ~= "table" or type(data.data) ~= "table" then
+			notify("ما قدرت أجيب قائمة السيرفرات", THEME.Danger, "⚠️")
+			return
+		end
+		local candidates = {}
+		for _, server in ipairs(data.data) do
+			if server.id ~= game.JobId and type(server.playing) == "number"
+				and type(server.maxPlayers) == "number" and server.playing < server.maxPlayers
+			then
+				table.insert(candidates, server)
+			end
+		end
+		if #candidates == 0 then
+			notify("ما لقيت سيرفر فاضي", THEME.Danger, "⚠️")
+			return
+		end
+		local target
+		if lowest then
+			table.sort(candidates, function(a, b)
+				return a.playing < b.playing
+			end)
+			target = candidates[1]
+		else
+			target = candidates[math.random(1, #candidates)]
+		end
+		notify("أنتقل لسيرفر فيه " .. target.playing .. " لاعب", THEME.Success, "🌐")
+		pcall(function()
+			TeleportService:TeleportToPlaceInstance(game.PlaceId, target.id, player)
+		end)
+	end)
+end
+
+function M.rejoin()
+	notify("جاري إعادة الدخول...", THEME.Accent2, "🔄")
+	pcall(function()
+		TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+	end)
+end
+
+function M.copy(text, what)
+	if typeof(setclipboard) == "function" then
+		pcall(setclipboard, text)
+		notify("تم نسخ " .. what, THEME.Success, "📋")
+	else
+		notify(text, THEME.Accent2, "📋")
+	end
+end
+
+function M.formatTime(seconds)
+	seconds = math.floor(seconds)
+	return string.format("%02d:%02d:%02d", seconds // 3600, (seconds % 3600) // 60, seconds % 60)
+end
+
+-- لوحة الأوامر
+function M.findPlayer(query)
+	query = (query or ""):lower()
+	if query == "" then return nil end
+	if query == "me" or query == "انا" then return player end
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other.Name:lower():sub(1, #query) == query or other.DisplayName:lower():sub(1, #query) == query then
+			return other
+		end
+	end
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other.Name:lower():find(query, 1, true) or other.DisplayName:lower():find(query, 1, true) then
+			return other
+		end
+	end
+	return nil
+end
+
+local function withPlayer(fn)
+	return function(arg)
+		local target = M.findPlayer(arg)
+		if target then
+			fn(target)
+		else
+			notify("ما لقيت لاعب: " .. tostring(arg), THEME.Danger, "⚠️")
+		end
+	end
+end
+
+local function withNumber(fn)
+	return function(arg)
+		local n = tonumber(arg)
+		if n then
+			fn(n)
+		else
+			notify("اكتب رقم بعد الأمر", THEME.Danger, "⚠️")
+		end
+	end
+end
+
+M.Commands = {
+	{ { "fly", "طيران" }, "طيران", function() F.setFly(not state.fly) end },
+	{ { "noclip", "جدران" }, "اختراق الجدران", function() M.setToggle("noclip", not state.noclip) end },
+	{ { "speed", "سرعة" }, "سرعة [رقم]", withNumber(function(n)
+		M.setSlider("walkSpeed", n)
+		M.setToggle("speedOn", true)
+	end) },
+	{ { "jump", "قفز" }, "قفز [رقم]", withNumber(function(n)
+		M.setSlider("jumpPower", n)
+		M.setToggle("jumpOn", true)
+	end) },
+	{ { "grav", "جاذبية" }, "جاذبية [رقم]", withNumber(function(n)
+		M.setSlider("gravity", n)
+		M.setToggle("gravityOn", true)
+	end) },
+	{ { "hover", "هوا" }, "مشي بالهوا", function() M.setToggle("hover", not state.hover) end },
+	{ { "tp", "روح" }, "روح [اسم]", withPlayer(F.teleportToPlayer) },
+	{ { "spec", "راقب" }, "راقب [اسم]", withPlayer(F.spectate) },
+	{ { "unspec", "وقف" }, "وقف المراقبة", function() F.spectate(nil) end },
+	{ { "copy", "انسخ" }, "انسخ [اسم] (أفاتار)", withPlayer(S.copyAvatar) },
+	{ { "wear", "لبس" }, "لبس [رقم قطعة]", withNumber(function(n)
+		task.spawn(S.wear, n)
+	end) },
+	{ { "freecam", "كاميرا" }, "كاميرا حرّة", function() M.setFreecam(not M.freecam) end },
+	{ { "fps", "خفيف" }, "معزّز الـ FPS", function() M.setToggle("lowGraphics", not state.lowGraphics) end },
+	{ { "xray", "اكس" }, "رؤية من خلال الجدران", function() M.setToggle("xray", not state.xray) end },
+	{ { "light", "اضاءة" }, "إضاءة كاملة", function() M.setToggle("fullbright", not state.fullbright) end },
+	{ { "music", "اغنية" }, "اغنية [رقم]", function(arg) M.playMusic(arg or "") end },
+	{ { "stop", "اسكت" }, "إيقاف الأغنية", function() M.stopMusic() end },
+	{ { "hop", "سيرفر" }, "سيرفر ثاني", function() M.serverHop(false) end },
+	{ { "rejoin", "اعادة" }, "إعادة دخول", function() M.rejoin() end },
+	{ { "reset", "موت" }, "ريسبون", function()
+		local _, humanoid = getCharacter()
+		if humanoid then humanoid.Health = 0 end
+	end },
+}
+
+function M.runCommand(text)
+	text = text:gsub("^%s+", ""):gsub("%s+$", ""):gsub("^[;:/!]", "")
+	if text == "" then return end
+	local name, arg = text:match("^(%S+)%s*(.*)$")
+	name = name:lower()
+	for _, command in ipairs(M.Commands) do
+		for _, alias in ipairs(command[1]) do
+			if alias == name then
+				command[3](arg ~= "" and arg or nil)
+				return
+			end
+		end
+	end
+	notify("أمر غير معروف: " .. name, THEME.Danger, "⌨️")
+end
+
 -----------------------------------------------------------
 -- صفحة 1: الرئيسية
 -----------------------------------------------------------
@@ -1930,6 +2622,62 @@ do
 	end
 end
 
+section("📊 لوحة مباشرة")
+do
+	local board = card(84, "")
+	board:SetAttribute("Search", nil)
+	local grid = create("Frame", {
+		Position = UDim2.new(0, 10, 0, 10),
+		Size = UDim2.new(1, -20, 1, -20),
+		BackgroundTransparency = 1,
+		Parent = board,
+	}, {
+		create("UIGridLayout", {
+			CellSize = UDim2.new(0.25, -6, 1, 0),
+			CellPadding = UDim2.new(0, 8, 0, 0),
+			HorizontalAlignment = Enum.HorizontalAlignment.Right,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+	local tiles = {}
+	for i, info in ipairs({ { "⚡", "FPS" }, { "📶", "البنق" }, { "👥", "اللاعبين" }, { "⏱", "السيرفر" } }) do
+		local tile = create("Frame", {
+			BackgroundColor3 = THEME.SurfaceLight,
+			BackgroundTransparency = 0.3,
+			LayoutOrder = i,
+			Parent = grid,
+		}, { corner(10) })
+		local value = label(tile, {
+			Position = UDim2.new(0, 0, 0, 8),
+			Size = UDim2.new(1, 0, 0, 26),
+			Text = "—",
+			TextSize = 18,
+		})
+		accentize(value, "TextColor3", "Accent2")
+		label(tile, {
+			Position = UDim2.new(0, 0, 1, -26),
+			Size = UDim2.new(1, 0, 0, 18),
+			Text = info[1] .. " " .. info[2],
+			TextColor3 = THEME.SubText,
+			TextSize = 11,
+			Font = FONT_REG,
+		})
+		tiles[i] = value
+	end
+	task.spawn(function()
+		while screenGui.Parent do
+			tiles[1].Text = tostring(math.floor(F.fps + 0.5))
+			local ok, ping = pcall(function()
+				return player:GetNetworkPing()
+			end)
+			tiles[2].Text = ok and tostring(math.floor(ping * 1000 + 0.5)) or "—"
+			tiles[3].Text = #Players:GetPlayers() .. "/" .. Players.MaxPlayers
+			tiles[4].Text = M.formatTime(Workspace.DistributedGameTime)
+			task.wait(1)
+		end
+	end)
+end
+
 section("⌨️ الاختصارات")
 do
 	local keys = card(78, "")
@@ -1938,7 +2686,10 @@ do
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -14, 0, 10),
 		Size = UDim2.new(1, -28, 0, 60),
-		Text = "الواجهة: " .. state.toggleKey .. "\nطيران: F   •   جدران: N\nانتقال بالضغط: Ctrl + كليك",
+		Text = string.format(
+			"الواجهة: %s   •   طيران: %s   •   جدران: %s\nوضع التصوير: %s   •   انتقال بالضغط: Ctrl + كليك\nالأوامر: من صفحة ⌨️ الأوامر",
+			state.toggleKey, state.flyKey, state.noclipKey, state.screenshotKey
+		),
 		TextColor3 = THEME.SubText,
 		TextSize = 12,
 		Font = FONT_REG,
@@ -1971,6 +2722,20 @@ slider("سرعة الطيران", "flySpeed", 10, 400, 5, "%d")
 
 section("👻 الجدران")
 toggle("اختراق الجدران", "تمشي من خلال أي شي (N)", "noclip")
+
+section("🪂 حركة متقدمة")
+toggle("مشي بالهوا", "تمشي بالهوا بنفس الارتفاع • E/Q أو ⬆⬇ للطلوع والنزول", "hover", function()
+	M.updateVerticalControls()
+end)
+toggle("مشي سريع (TP Walk)", "سرعة إضافية بطريقة الانتقال", "tpWalk")
+slider("قوة المشي السريع", "tpWalkSpeed", 1, 15, 0.5, "%.1f")
+toggle("قفز تلقائي", "يقفز لحاله وأنت تمشي", "autoJump")
+toggle("الجاذبية", "جاذبية أقل = قفز أعلى وطيحة أبطأ", "gravityOn", function()
+	M.applyGravity()
+end)
+slider("قوة الجاذبية", "gravity", 5, 400, 5, "%d", function()
+	M.applyGravity()
+end)
 
 -----------------------------------------------------------
 -- صفحة 3: السيارات
@@ -2221,6 +2986,165 @@ do
 	})
 end
 
+-- شبكة أزرار (للأطقم والبكجات والكتالوج)
+local function buttonGrid(columns, rowHeight, count, searchText)
+	local rows = math.ceil(count / columns)
+	local c = card(rows * (rowHeight + 8) + 12, searchText)
+	local grid = create("Frame", {
+		Position = UDim2.new(0, 10, 0, 10),
+		Size = UDim2.new(1, -20, 1, -20),
+		BackgroundTransparency = 1,
+		Parent = c,
+	}, {
+		create("UIGridLayout", {
+			CellSize = UDim2.new(1 / columns, -6, 0, rowHeight),
+			CellPadding = UDim2.new(0, 8, 0, 8),
+			HorizontalAlignment = Enum.HorizontalAlignment.Right,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+	return grid, c
+end
+
+section("✨ أطقم جاهزة")
+do
+	local status = nil
+	local grid = buttonGrid(4, 38, #S.Presets, "أطقم جاهزة كول ملكي شيطان ملاك قيمر كيوت دارك محارب")
+	for i, preset in ipairs(S.Presets) do
+		local btn = smallButton(grid, preset.name, UDim2.new(), UDim2.new(), i == 1)
+		btn.LayoutOrder = i
+		btn.TextSize = 13
+		btn.MouseButton1Click:Connect(function()
+			notify("ألبس طقم " .. preset.name .. "...", THEME.Accent2, "✨")
+			S.wearOutfit(preset, status)
+		end)
+	end
+	action("🎲 طقم عشوائي", "شعر ووجه وقميص وبنطلون وإكسسوار عشوائي", "عشوائي", function()
+		notify("ألبس طقم عشوائي...", THEME.Accent2, "🎲")
+		S.randomOutfit()
+	end)
+end
+
+section("🦴 بكجات الأجسام")
+do
+	local grid = buttonGrid(4, 38, #S.Bundles, "بكجات korblox headless كوربلوكس هيدلس")
+	for i, bundle in ipairs(S.Bundles) do
+		local btn = smallButton(grid, bundle[1], UDim2.new(), UDim2.new(), i <= 2)
+		btn.LayoutOrder = i
+		btn.MouseButton1Click:Connect(function()
+			notify("ألبس " .. bundle[1] .. "...", THEME.Accent2, "🦴")
+			S.wearBundle(bundle)
+		end)
+	end
+end
+
+section("🛍️ متصفح القطع")
+do
+	local browser = card(46, "متصفح القطع شعر وجوه تيجان أجنحة قمصان بناطيل قبعات")
+	local chips = create("ScrollingFrame", {
+		Position = UDim2.new(0, 8, 0, 6),
+		Size = UDim2.new(1, -16, 0, 34),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 0,
+		ScrollingDirection = Enum.ScrollingDirection.X,
+		AutomaticCanvasSize = Enum.AutomaticSize.X,
+		CanvasSize = UDim2.new(),
+		Parent = browser,
+	}, {
+		create("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalAlignment = Enum.HorizontalAlignment.Right,
+			Padding = UDim.new(0, 6),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+
+	local maxItems = 0
+	for _, category in ipairs(S.Catalog) do
+		maxItems = math.max(maxItems, #category.Items)
+	end
+	local grid, gridCard = buttonGrid(3, 34, maxItems, "")
+	gridCard:SetAttribute("Search", nil)
+
+	local chipButtons = {}
+	local function showCategory(index)
+		for _, child in ipairs(grid:GetChildren()) do
+			if child:IsA("TextButton") then
+				child:Destroy()
+			end
+		end
+		local category = S.Catalog[index]
+		for i, item in ipairs(category.Items) do
+			local btn = smallButton(grid, item[1], UDim2.new(), UDim2.new(), false)
+			btn.LayoutOrder = i
+			btn.MouseButton1Click:Connect(function()
+				task.spawn(function()
+					if S.wear(item[2]) then
+						notify("لبست " .. item[1] .. " ✓", THEME.Success, "🛍️")
+					end
+				end)
+			end)
+		end
+		local rows = math.ceil(#category.Items / 3)
+		gridCard.Size = UDim2.new(1, 0, 0, rows * 42 + 12)
+		for i, chip in ipairs(chipButtons) do
+			chip.BackgroundColor3 = (i == index) and THEME.Accent or THEME.SurfaceLight
+			chip.TextColor3 = (i == index) and THEME.Text or THEME.SubText
+		end
+	end
+
+	for i, category in ipairs(S.Catalog) do
+		local chip = create("TextButton", {
+			Size = UDim2.new(0, 84, 1, -4),
+			BackgroundColor3 = THEME.SurfaceLight,
+			AutoButtonColor = false,
+			Text = category.Name,
+			TextColor3 = THEME.SubText,
+			TextSize = 12,
+			Font = FONT_BOLD,
+			LayoutOrder = i,
+			Parent = chips,
+		}, { corner(15) })
+		chipButtons[i] = chip
+		chip.MouseButton1Click:Connect(function()
+			showCategory(i)
+		end)
+	end
+	showCategory(1)
+end
+
+section("🎨 لون البشرة")
+do
+	local tones = card(58, "لون البشرة")
+	local row = create("Frame", {
+		Position = UDim2.new(0, 12, 0, 12),
+		Size = UDim2.new(1, -24, 0, 34),
+		BackgroundTransparency = 1,
+		Parent = tones,
+	}, {
+		create("UIListLayout", {
+			FillDirection = Enum.FillDirection.Horizontal,
+			HorizontalAlignment = Enum.HorizontalAlignment.Right,
+			Padding = UDim.new(0, 8),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+	for i, color in ipairs(S.SkinTones) do
+		local swatch = create("TextButton", {
+			Size = UDim2.new(0, 34, 0, 34),
+			BackgroundColor3 = color,
+			AutoButtonColor = false,
+			Text = "",
+			LayoutOrder = i,
+			Parent = row,
+		}, { corner(17), stroke(THEME.Stroke, 2, 0.2) })
+		swatch.MouseButton1Click:Connect(function()
+			S.setSkinColor(color)
+		end)
+	end
+end
+
 section("🧢 لبس قطعة بالرقم")
 inputCard("رقم القطعة (ID)", "مثلاً 48474313", "لبس", function(text)
 	local id = tonumber((text:gsub("%D", "")))
@@ -2234,42 +3158,6 @@ inputCard("رقم القطعة (ID)", "مثلاً 48474313", "لبس", function(
 		end
 	end)
 end)
-
-do
-	-- قطع جاهزة (تأكدت من أرقامها من موقع Roblox)
-	local quick = card(96, "قطع جاهزة")
-	local grid = create("Frame", {
-		Position = UDim2.new(0, 10, 0, 10),
-		Size = UDim2.new(1, -20, 1, -20),
-		BackgroundTransparency = 1,
-		Parent = quick,
-	}, {
-		create("UIGridLayout", {
-			CellSize = UDim2.new(1 / 3, -6, 0.5, -4),
-			CellPadding = UDim2.new(0, 8, 0, 8),
-			HorizontalAlignment = Enum.HorizontalAlignment.Right,
-			SortOrder = Enum.SortOrder.LayoutOrder,
-		}),
-	})
-	local items = {
-		{ "👑 Dominus", 21070012 },
-		{ "⚔️ Valkyrie", 1365767 },
-		{ "🧢 Red Cap", 48474313 },
-		{ "💇 Bun Hair", 62724852 },
-		{ "🎃 Bighead", 1048037 },
-	}
-	for i, item in ipairs(items) do
-		local btn = smallButton(grid, item[1], UDim2.new(), UDim2.new(), false)
-		btn.LayoutOrder = i
-		btn.MouseButton1Click:Connect(function()
-			task.spawn(function()
-				if S.wear(item[2]) then
-					notify("لبست " .. item[1] .. " ✓", THEME.Success, "🧢")
-				end
-			end)
-		end)
-	end
-end
 
 section("👥 نسخ أفاتار لاعب")
 do
@@ -2431,6 +3319,31 @@ section("🕐 الوقت")
 toggle("تثبيت الوقت", "تختار وقت اليوم (عندك بس)", "timeLock", F.applyLighting)
 slider("الساعة", "clockTime", 0, 24, 0.25, "%.2f")
 
+section("⚡ الأداء")
+toggle("معزّز الـ FPS", "جرافيكس خفيف: يشيل المؤثرات والانعكاسات (عندك بس)", "lowGraphics", function()
+	M.applyLowGraphics()
+end)
+toggle("فك حد الـ FPS", "أكثر من 60 فريم (إذا الـ Executor يدعم)", "fpsUnlock", function()
+	M.applyFpsCap()
+end)
+slider("حد الـ FPS", "fpsCap", 60, 360, 10, "%d", function()
+	if state.fpsUnlock then
+		M.applyFpsCap()
+	end
+end)
+
+section("🧱 أدوات العالم")
+toggle("رؤية من خلال الجدران", "الجدران تصير شفافة (عندك بس)", "xray", function()
+	M.applyXray()
+end)
+toggle("حذف بالضغط", "اضغط على أي شي يختفي (عندك بس)", "deleteMode", function(value)
+	M.deleteMode = value
+end)
+action("استرجاع المحذوف", "يرجّع كل شي حذفته", "استرجاع", function()
+	M.restoreDeleted()
+	notify("رجّعت كل المحذوف", THEME.Success, "🧱")
+end)
+
 -----------------------------------------------------------
 -- صفحة 8: الحماية
 -----------------------------------------------------------
@@ -2445,6 +3358,148 @@ toggle("ضد الطرد (Anti-AFK)", "ما ينطردك بسبب عدم الحر
 action("رجوع لآخر مكان آمن", "إذا علقت أو طرت", "رجوع", function()
 	if F.lastSafe then
 		F.teleport(F.lastSafe)
+	end
+end)
+
+-----------------------------------------------------------
+-- صفحة: الكاميرا
+-----------------------------------------------------------
+newPage("🎥", "الكاميرا")
+
+section("🎥 كاميرا حرّة")
+do
+	local c = card(54, "كاميرا حرة freecam")
+	titles(c, "الكاميرا الحرّة", "تطير بالكاميرا بدون شخصيتك • لف: كليك يمين أو اسحب بإصبعك")
+	local sw
+	sw = makeSwitch(c, false, function(value)
+		M.setFreecam(value)
+	end)
+	switches.freecam = sw
+end
+slider("سرعة الكاميرا", "freecamSpeed", 10, 300, 5, "%d")
+
+section("🔭 إعدادات الكاميرا")
+toggle("تكبير بلا حدود", "تبعّد الكاميرا لأي مسافة", "maxZoom", function()
+	M.applyCamera()
+end)
+toggle("منظور أول شخص", "تشوف من عيون شخصيتك", "firstPerson", function()
+	M.applyCamera()
+end)
+
+-----------------------------------------------------------
+-- صفحة: الترفيه
+-----------------------------------------------------------
+newPage("🎵", "الترفيه")
+
+section("🎵 مشغّل الموسيقى (عندك بس)")
+inputCard("رقم الأغنية (Sound ID)", "مثلاً 1837849285", "تشغيل", function(text)
+	M.playMusic(text)
+end)
+slider("الصوت", "musicVolume", 0, 2, 0.05, "%.2f", function(value)
+	M.music.Volume = value
+end)
+action("إيقاف الأغنية", "يوقف الموسيقى", "إيقاف", function()
+	M.stopMusic()
+end)
+
+section("✨ مؤثرات (عندك بس)")
+toggle("ذيل ملوّن", "ذيل بألوان قوس قزح وراك", "trail", function()
+	M.applyTrail()
+end)
+
+-----------------------------------------------------------
+-- صفحة: السيرفر
+-----------------------------------------------------------
+newPage("🌐", "السيرفر")
+
+section("📊 معلومات السيرفر")
+local serverLabels = {}
+do
+	local c = card(112, "معلومات السيرفر")
+	local function row(y, name)
+		label(c, {
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -14, 0, y),
+			Size = UDim2.new(0.5, -14, 0, 18),
+			Text = name,
+			TextColor3 = THEME.SubText,
+			TextSize = 13,
+			Font = FONT_REG,
+			TextXAlignment = Enum.TextXAlignment.Right,
+		})
+		return label(c, {
+			Position = UDim2.new(0, 14, 0, y),
+			Size = UDim2.new(0.5, -14, 0, 18),
+			Text = "—",
+			TextSize = 13,
+			TextXAlignment = Enum.TextXAlignment.Left,
+		})
+	end
+	serverLabels.Players = row(12, "👥 اللاعبين")
+	serverLabels.Uptime = row(34, "⏱ عمر السيرفر")
+	serverLabels.Ping = row(56, "📶 البنق")
+	serverLabels.Place = row(78, "🆔 رقم الماب")
+end
+
+section("🔀 التنقّل بين السيرفرات")
+action("سيرفر ثاني", "ينقلك لسيرفر عشوائي ثاني", "انتقال", function()
+	M.serverHop(false)
+end)
+action("أقل سيرفر لاعبين", "ينقلك لأفضى سيرفر", "انتقال", function()
+	M.serverHop(true)
+end)
+action("إعادة الدخول", "ترجع لنفس السيرفر", "إعادة", function()
+	M.rejoin()
+end)
+action("نسخ رقم السيرفر", "Job ID حق السيرفر الحالي", "نسخ", function()
+	M.copy(game.JobId, "رقم السيرفر")
+end)
+
+-----------------------------------------------------------
+-- صفحة: الأوامر
+-----------------------------------------------------------
+newPage("⌨️", "الأوامر")
+
+section("⌨️ اكتب أمر")
+do
+	local box = inputCard("الأمر", "مثلاً: speed 100  أو  روح احمد", "تنفيذ", function(text, b)
+		M.runCommand(text)
+		b.Text = ""
+	end)
+	box.TextXAlignment = Enum.TextXAlignment.Left
+end
+
+section("📜 الأوامر المتاحة")
+do
+	local lines = {}
+	for _, command in ipairs(M.Commands) do
+		table.insert(lines, string.format("%s  /  %s   —   %s", command[1][1], command[1][2], command[2]))
+	end
+	local c = card(#lines * 19 + 20, "الأوامر")
+	c:SetAttribute("Search", nil)
+	label(c, {
+		Position = UDim2.new(0, 14, 0, 10),
+		Size = UDim2.new(1, -28, 1, -20),
+		Text = table.concat(lines, "\n"),
+		TextColor3 = THEME.SubText,
+		TextSize = 12,
+		Font = Enum.Font.Code,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+	})
+end
+
+-- تحديث معلومات السيرفر
+task.spawn(function()
+	while screenGui.Parent do
+		serverLabels.Players.Text = string.format("%d / %d", #Players:GetPlayers(), Players.MaxPlayers)
+		serverLabels.Uptime.Text = M.formatTime(Workspace.DistributedGameTime)
+		local ok, ping = pcall(function()
+			return player:GetNetworkPing()
+		end)
+		serverLabels.Ping.Text = ok and string.format("%d ms", math.floor(ping * 1000 + 0.5)) or "—"
+		serverLabels.Place.Text = tostring(game.PlaceId)
+		task.wait(1)
 	end
 end)
 
@@ -2508,6 +3563,11 @@ do
 		end)
 	end
 end
+
+section("📸 وضع التصوير")
+action("وضع التصوير", "يخفي كل الواجهات • زر 👁 فوق يرجّعها (" .. state.screenshotKey .. ")", "تشغيل", function()
+	M.setScreenshot(true)
+end)
 
 section("🖥️ الواجهة")
 toggle("لوحة الأداء", "FPS والبنق وعدد اللاعبين", "showStats", function(value)
@@ -2637,8 +3697,12 @@ connect(UserInputService.InputEnded, function(input)
 		local moved = (input.Position - tapStart).Magnitude
 		local held = os.clock() - tapTime
 		tapStart = nil
-		if F.tapToTeleport and moved < 12 and held < 0.35 then
-			F.teleportToScreenPoint(input.Position)
+		if moved < 12 and held < 0.35 then
+			if M.deleteMode then
+				M.deleteAt(input.Position)
+			elseif F.tapToTeleport then
+				F.teleportToScreenPoint(input.Position)
+			end
 		end
 	end
 	if isPress(input) then
@@ -2659,6 +3723,9 @@ connect(UserInputService.InputBegan, function(input, gameProcessed)
 	if isPress(input) and not gameProcessed then
 		if input.UserInputType == Enum.UserInputType.Touch then
 			tapStart, tapTime = input.Position, os.clock()
+		elseif M.deleteMode and input.UserInputType == Enum.UserInputType.MouseButton1 then
+			M.deleteAt(input.Position)
+			return
 		elseif state.clickTp and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
 			F.teleportToScreenPoint(input.Position)
 			return
@@ -2669,15 +3736,14 @@ connect(UserInputService.InputBegan, function(input, gameProcessed)
 	local key = input.KeyCode
 	if key.Name == state.toggleKey then
 		setVisible(not state.guiVisible)
-	elseif key == Enum.KeyCode.F then
+	elseif key.Name == state.flyKey then
 		F.setFly(not state.fly)
 		notify(state.fly and "الطيران شغّال" or "الطيران طافي", THEME.Accent2, "✈️")
-	elseif key == Enum.KeyCode.N then
-		state.noclip = not state.noclip
-		if switches.noclip then
-			switches.noclip.set(state.noclip, true)
-		end
+	elseif key.Name == state.noclipKey then
+		M.setToggle("noclip", not state.noclip)
 		notify(state.noclip and "اختراق الجدران شغّال" or "اختراق الجدران طافي", THEME.Accent2, "👻")
+	elseif key.Name == state.screenshotKey then
+		M.setScreenshot(not M.screenshot)
 	end
 end)
 
@@ -2740,6 +3806,30 @@ local function cleanup()
 	if camConnection then
 		camConnection:Disconnect()
 	end
+	-- مميزات إضافية
+	if M.freecam then
+		M.setFreecam(false)
+	end
+	if M.screenshot then
+		M.setScreenshot(false)
+	end
+	state.gravityOn, state.maxZoom, state.firstPerson = false, false, false
+	M.applyGravity()
+	M.applyCamera()
+	M.restoreDeleted()
+	if state.xray then
+		state.xray = false
+		M.applyXray()
+	end
+	if state.lowGraphics then
+		state.lowGraphics = false
+		M.graphicsBusy = false
+		M.applyLowGraphics()
+	end
+	state.trail = false
+	M.applyTrail()
+	M.screenshotButton.Parent:Destroy()
+
 	blurEffect:Destroy()
 	screenGui:Destroy()
 	_G.MohammedTN_Brookhaven_Cleanup = nil
@@ -2759,6 +3849,11 @@ applyTheme(state.themeIndex)
 F.applyLighting()
 F.tapToTeleport = state.clickTp
 statsPanel.Visible = state.showStats
+M.applyCamera()
+M.applyTrail()
+if state.fpsUnlock then
+	M.applyFpsCap()
+end
 
 do
 	local splash = create("Frame", {
