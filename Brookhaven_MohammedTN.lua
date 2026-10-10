@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        🏡  Brookhaven Hub  🏡             ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v2.3                     ║
+	║                 v2.4                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift
@@ -36,7 +36,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -----------------------------------------------------------
 local CONFIG = {
 	Name = "Brookhaven Hub",
-	Version = "v2.3",
+	Version = "v2.4",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Brookhaven.json",
 	Width = 690,
@@ -2574,6 +2574,10 @@ function R.fire(remote, ...)
 	return pcall(function()
 		if remote:IsA("RemoteFunction") then
 			remote:InvokeServer(table.unpack(args, 1, args.n))
+		elseif remote:IsA("BindableEvent") then
+			remote:Fire(table.unpack(args, 1, args.n))
+		elseif remote:IsA("BindableFunction") then
+			remote:Invoke(table.unpack(args, 1, args.n))
 		else
 			remote:FireServer(table.unpack(args, 1, args.n))
 		end
@@ -2736,7 +2740,31 @@ end)
 -- المنزل: ندوّر على البيوت وأصحابها في الماب
 R.houseCache, R.houseCacheTime = {}, -math.huge
 
+local function resolveOwner(value)
+	if typeof(value) == "Instance" and value:IsA("Player") then
+		return value
+	elseif type(value) == "string" and value ~= "" then
+		return Players:FindFirstChild(value)
+	end
+	return nil
+end
+
 local function ownerOf(model)
+	-- Brookhaven: 001_Lots.<اسم>House.OwnerObj / Owner
+	local direct = false
+	for _, name in ipairs({ "OwnerObj", "OwnerOBJ", "Owner" }) do
+		local value = model:FindFirstChild(name)
+		if value and value:IsA("ValueBase") then
+			direct = true
+			local owner = resolveOwner(value.Value)
+			if owner then
+				return owner
+			end
+		end
+	end
+	if direct then
+		return nil
+	end
 	for _, obj in ipairs(model:GetDescendants()) do
 		if (obj:IsA("ObjectValue") or obj:IsA("StringValue")) and obj.Name:lower():find("owner") then
 			local value = obj.Value
@@ -2764,11 +2792,17 @@ function R.houses()
 	for _, folder in ipairs(Workspace:GetChildren()) do
 		local lower = folder.Name:lower()
 		if lower:find("lot") or lower:find("house") or lower:find("propert") then
-			for _, model in ipairs(folder:GetChildren()) do
-				if model:IsA("Model") then
-					local owner = ownerOf(model)
+			for _, lot in ipairs(folder:GetChildren()) do
+				if lot:IsA("Model") or lot:IsA("Folder") then
+					local owner = ownerOf(lot)
 					if owner then
-						table.insert(list, { Model = model, Owner = owner })
+						local picked = lot:FindFirstChild("HousePickedByPlayer")
+						local houseModel = picked and picked:FindFirstChild("HouseModel")
+						local model = (houseModel and houseModel:IsA("Model")) and houseModel
+							or (lot:IsA("Model") and lot or nil)
+						if model then
+							table.insert(list, { Model = model, Lot = lot, Owner = owner })
+						end
 					end
 				end
 			end
@@ -2830,18 +2864,31 @@ function R.inside(house, target)
 end
 
 -- أوامر صاحب البيت (اللعبة نفسها تسمح فيها لصاحب البيت بس)
-R.Methods.kick = {
+function R.perm(name)
+	local house = R.myHouse()
+	return house and house.Model:FindFirstChild("Permissions:" .. name)
+end
+
+R.Methods.houseKick = {
+	function(t) return R.fire(R.perm("SoftDisallow"), t) end,
+	function(t) return R.fire(R.perm("Disallow"), t) end,
+	function(t) return R.fire(R.perm("SoftDisallow"), t.UserId) end,
+	function(t) return R.fire(R.perm("Disallow"), t.UserId) end,
 	function(t) return R.fire(R.re("1Player1sHous1e"), "KickPlayer", t) end,
 	function(t) return R.fire(R.re("1Player1sHous1e"), "Kick", t) end,
 	function(t) return R.fire(S.remote("Property:Permissions"), "Kick", t) end,
 	function(t) return R.fire(R.re("1Player1sHous1e"), "KickPlayer", t.Name) end,
 }
-R.Methods.ban = {
+R.Methods.houseBan = {
+	function(t) return R.fire(R.perm("Disallow"), t) end,
+	function(t) return R.fire(R.perm("Disallow"), t.UserId) end,
 	function(t) return R.fire(R.re("1Player1sHous1e"), "BanPlayer", t) end,
 	function(t) return R.fire(S.remote("Property:Permissions"), "Ban", t) end,
 	function(t) return R.fire(R.re("1Player1sHous1e"), "Ban", t) end,
 }
-R.Methods.lock = {
+R.Methods.houseLock = {
+	function(on) return R.fire(R.re("1Player1sHous1e"), "LockDoors", on) end,
+	function(on) return R.fire(R.re("1Player1sHous1e"), "LockDoors") end,
 	function(on) return R.fire(R.re("1Player1sHous1e"), on and "LockHouse" or "UnlockHouse") end,
 	function(on) return R.fire(R.re("1Player1sHous1e"), "Lock", on) end,
 	function(on) return R.fire(S.remote("Property:Permissions"), "Lock", on) end,
@@ -2885,11 +2932,11 @@ function R.kick(target, ban)
 	local word = ban and "حظر" or "طرد"
 	task.spawn(function()
 		if not R.inside(house, target) then
-			R.method(ban and "ban" or "kick")(target)
+			R.method(ban and "houseBan" or "houseKick")(target)
 			notify("تم إرسال " .. word .. " " .. target.DisplayName, THEME.Accent2, "🚪")
 			return
 		end
-		local done = R.tryMethods(ban and "ban" or "kick", target, function()
+		local done = R.tryMethods(ban and "houseBan" or "houseKick", target, function()
 			return not R.inside(house, target)
 		end, 2)
 		if done then
@@ -2898,6 +2945,16 @@ function R.kick(target, ban)
 			notify("ما طلع — جرّب \"طريقة ثانية\"", THEME.Warning, "🚪")
 		end
 	end)
+end
+
+function R.unban(target)
+	if not R.myHouse() then
+		notify("لازم يكون عندك بيت أول", THEME.Danger, "🏠")
+		return
+	end
+	R.fire(R.perm("Allow"), target)
+	R.fire(R.perm("SoftAllow"), target)
+	notify("فكّيت الحظر عن " .. target.DisplayName, THEME.Success, "🔓")
 end
 
 function R.kickAll(silent)
@@ -2926,7 +2983,7 @@ function R.setLock(on)
 		notify("لازم يكون عندك بيت أول", THEME.Danger, "🏠")
 		return
 	end
-	R.method("lock")(on)
+	R.method("houseLock")(on)
 	notify(on and "تم قفل البيت 🔒" or "تم فتح القفل 🔓", THEME.Success, "🏠")
 end
 
@@ -2993,9 +3050,21 @@ function R.toggleLights()
 		return
 	end
 	R.lightsOn = not R.lightsOn
-	for _, obj in ipairs(house.Model:GetDescendants()) do
-		if obj:IsA("Light") then
-			obj.Enabled = R.lightsOn
+	local switches = 0
+	if typeof(fireclickdetector) == "function" then
+		for _, obj in ipairs(house.Model:GetDescendants()) do
+			if obj:IsA("ClickDetector") and obj.Parent and obj.Parent.Name:find("^LightSwitch") then
+				switches += 1
+				task.spawn(pcall, fireclickdetector, obj)
+			end
+		end
+	end
+	if switches == 0 then
+		-- ما في مفاتيح: نطفيها عندك بس
+		for _, obj in ipairs(house.Model:GetDescendants()) do
+			if obj:IsA("Light") then
+				obj.Enabled = R.lightsOn
+			end
 		end
 	end
 	notify(R.lightsOn and "الأنوار شغّالة 💡" or "الأنوار مطفية 🌑", THEME.Accent2, "💡")
@@ -3043,7 +3112,7 @@ connect(RunService.Heartbeat, function()
 			if inside and state.houseGuard and not (state.guardFriends and R.friends[other])
 				and now - (R.kickCooldown[other] or 0) > 3 then
 				R.kickCooldown[other] = now
-				task.spawn(R.method("kick"), other)
+				task.spawn(R.method("houseKick"), other)
 			end
 		end
 	end
@@ -4183,14 +4252,14 @@ action("فتح القفل", "الكل يقدر يدخل", "🔓 فتح", functio
 	R.setLock(false)
 end)
 action("🔁 طريقة ثانية للقفل", "إذا القفل ما اشتغل", "تبديل", function()
-	R.nextMethod("lock")
+	R.nextMethod("houseLock")
 end)
 action("الأبواب", "تفتح وتسكّر كل أبواب بيتك", "🚪 فتح/سكّر", function()
 	R.toggleDoors(false)
 end)
 toggle("باب تلقائي", "الأبواب تفتح وتسكّر لحالها", "autoDoor")
 slider("الفاصل بين كل فتحة (ثانية)", "doorInterval", 0.4, 5, 0.1, "%.1f")
-action("الأنوار", "تشغيل/إطفاء أنوار بيتك (عندك بس)", "💡 تبديل", R.toggleLights)
+action("الأنوار", "يضغط كل مفاتيح الأنوار ببيتك", "💡 تبديل", R.toggleLights)
 
 section("🚨 حماية البيت")
 toggle("تنبيه الدخول", "يعلمك لما أحد يدخل بيتك", "houseAlert")
@@ -4200,8 +4269,8 @@ action("اطرد الكل", "يطرد كل اللي داخل بيتك الحين
 	R.kickAll(false)
 end)
 action("🔁 طريقة ثانية للطرد", "إذا الطرد ما اشتغل", "تبديل", function()
-	R.nextMethod("kick")
-	R.nextMethod("ban")
+	R.nextMethod("houseKick")
+	R.nextMethod("houseBan")
 end)
 
 section("👥 طرد أو حظر لاعب")
@@ -4236,7 +4305,7 @@ local function refreshKickList()
 			label(row, {
 				AnchorPoint = Vector2.new(1, 0.5),
 				Position = UDim2.new(1, -14, 0.5, 0),
-				Size = UDim2.new(1, -200, 1, 0),
+				Size = UDim2.new(1, -230, 1, 0),
 				Text = (inside and "🚨 " or "") .. other.DisplayName,
 				TextSize = 13,
 				TextTruncate = Enum.TextTruncate.AtEnd,
@@ -4246,9 +4315,13 @@ local function refreshKickList()
 			kickBtn.MouseButton1Click:Connect(function()
 				R.kick(other, false)
 			end)
-			local banBtn = smallButton(row, "حظر", UDim2.new(0, 100, 0.5, -13), UDim2.new(0, 84, 0, 26), false)
+			local banBtn = smallButton(row, "حظر", UDim2.new(0, 100, 0.5, -13), UDim2.new(0, 60, 0, 26), false)
 			banBtn.MouseButton1Click:Connect(function()
 				R.kick(other, true)
+			end)
+			local unbanBtn = smallButton(row, "فك", UDim2.new(0, 166, 0.5, -13), UDim2.new(0, 44, 0, 26), false)
+			unbanBtn.MouseButton1Click:Connect(function()
+				R.unban(other)
 			end)
 		end
 	end
