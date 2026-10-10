@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        🏡  Brookhaven Hub  🏡             ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v2.1                     ║
+	║                 v2.2                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift
@@ -36,7 +36,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -----------------------------------------------------------
 local CONFIG = {
 	Name = "Brookhaven Hub",
-	Version = "v2.1",
+	Version = "v2.2",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Brookhaven.json",
 	Width = 690,
@@ -120,6 +120,10 @@ local state = {
 	flyKey = "F", noclipKey = "N", screenshotKey = "P",
 	-- السكنات
 	wearSig = 0, outfits = {}, colorSig = 0, bundleSig = 0,
+	-- الرول بلاي + RGB + المنزل
+	rpName = "", rpBio = "", sigs = {},
+	rgbName = false, rgbBio = false, rgbCar = false, rgbHouse = false, rgbUi = false,
+	rgbSpeed = 0.25, rgbInterval = 0.4,
 
 	-- غير محفوظة
 	guiVisible = true,
@@ -134,7 +138,8 @@ local SAVED_KEYS = {
 	"showStats", "blur", "themeIndex", "activePage", "toggleKey", "floatingButton",
 	"tpWalkSpeed", "autoJump", "gravity", "freecamSpeed", "maxZoom", "firstPerson",
 	"fpsUnlock", "fpsCap", "trail", "musicId", "musicVolume", "flyKey", "noclipKey", "screenshotKey",
-	"wearSig", "outfits", "colorSig", "bundleSig",
+	"wearSig", "outfits", "colorSig", "bundleSig", "rpName", "rpBio", "sigs",
+	"rgbSpeed", "rgbInterval",
 }
 
 local canSave = typeof(writefile) == "function" and typeof(readfile) == "function" and typeof(isfile) == "function"
@@ -2550,6 +2555,252 @@ function M.runCommand(text)
 end
 
 -----------------------------------------------------------
+-- الرول بلاي + الألوان + المنزل (ريموتات Brookhaven)
+-----------------------------------------------------------
+local R = {}
+
+function R.re(name)
+	local folder = game:GetService("ReplicatedStorage"):FindFirstChild("RE")
+	return folder and folder:FindFirstChild(name)
+end
+
+-- نرسل لريموت بدون ما يوقف السكربت لو صار خطأ
+function R.fire(remote, ...)
+	if not remote then return false end
+	local args = table.pack(...)
+	return pcall(function()
+		if remote:IsA("RemoteFunction") then
+			remote:InvokeServer(table.unpack(args, 1, args.n))
+		else
+			remote:FireServer(table.unpack(args, 1, args.n))
+		end
+	end)
+end
+
+-- طرق معروفة لكل ميزة (Solara ما يقدر يراقب الريموتات، فنجرّب)
+R.Methods = {
+	name = {
+		function(text) return R.fire(R.re("1RPNam1eText"), "RolePlayName", text) end,
+		function(text) return R.fire(R.re("1RPNam1eText"), "Name", text) end,
+		function(text) return R.fire(R.re("1RPNam1eText"), text) end,
+	},
+	bio = {
+		function(text) return R.fire(R.re("1RPNam1eText"), "RolePlayBio", text) end,
+		function(text) return R.fire(R.re("1RPNam1eText"), "Bio", text) end,
+	},
+	nameColor = {
+		function(color) return R.fire(R.re("1RPNam1eColo1r"), "PickingRPNameColor", color) end,
+		function(color) return R.fire(R.re("1RPNam1eColo1r"), "RolePlayName", color) end,
+		function(color) return R.fire(R.re("1RPNam1eColo1r"), color) end,
+	},
+	bioColor = {
+		function(color) return R.fire(R.re("1RPNam1eColo1r"), "PickingRPBioColor", color) end,
+		function(color) return R.fire(R.re("1RPNam1eColo1r"), "RolePlayBio", color) end,
+	},
+	carColor = {
+		function(color) return R.fire(R.re("1Player1sCa1r"), "PickingCarColor", color) end,
+		function(color) return R.fire(S.remote("SetColor"), color) end,
+		function(color) return R.fire(R.re("1Player1sCa1r"), "CarColor", color) end,
+	},
+	houseColor = {
+		function(color) return R.fire(R.re("1Player1sHous1e"), "ColorPickHouse", color) end,
+		function(color) return R.fire(S.remote("Property:SetColor"), color) end,
+		function(color) return R.fire(R.re("1Player1sHous1e"), "PickingHouseColor", color) end,
+	},
+}
+
+function R.method(key)
+	local index = tonumber(state.sigs[key]) or 1
+	local list = R.Methods[key]
+	if index < 1 or index > #list then
+		index = 1
+	end
+	return list[index], index, #list
+end
+
+-- زر "طريقة ثانية": ننتقل للطريقة الجاية ونحفظها
+function R.nextMethod(key)
+	local _, index, total = R.method(key)
+	state.sigs[key] = index % total + 1
+	scheduleSave()
+	notify(string.format("الطريقة %d من %d", state.sigs[key], total), THEME.Accent2, "🔁")
+end
+
+-- هل اسمي الجديد ظاهر فوق شخصيتي؟
+function R.textVisible(text)
+	local character = player.Character
+	if not character or text == "" then return false end
+	for _, obj in ipairs(character:GetDescendants()) do
+		if (obj:IsA("TextLabel") or obj:IsA("TextBox")) and obj.ContentText:find(text, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
+-- الاسم والبايو: نجرّب الطرق ونتأكد إن النص ظهر فوق الشخصية
+function R.setText(key, text)
+	text = text:gsub("^%s+", ""):gsub("%s+$", "")
+	if text == "" then
+		notify("اكتب النص أول", THEME.Danger, "⚠️")
+		return
+	end
+	state[key == "name" and "rpName" or "rpBio"] = text
+	scheduleSave()
+	task.spawn(function()
+		local list = R.Methods[key]
+		local _, first = R.method(key)
+		local order = { first }
+		for i = 1, #list do
+			if i ~= first then
+				table.insert(order, i)
+			end
+		end
+		for _, index in ipairs(order) do
+			list[index](text)
+			if S.waitFor(function() return R.textVisible(text) end, 1.5) then
+				if state.sigs[key] ~= index then
+					state.sigs[key] = index
+					scheduleSave()
+				end
+				notify((key == "name" and "تم تغيير اسمك: " or "تم تغيير البايو: ") .. text, THEME.Success, "🎭")
+				return
+			end
+		end
+		-- ما قدرنا نتأكد (ممكن الاسم ينعرض بمكان ثاني)، نخلي الطريقة الأولى
+		notify("تم الإرسال — إذا ما تغيّر جرّب \"طريقة ثانية\"", THEME.Warning, "🎭")
+	end)
+end
+
+function R.setColor(key, color)
+	local method = R.method(key)
+	method(color)
+end
+
+-- زخرفة الاسم
+R.Decorations = {
+	function(t) return "『 " .. t .. " 』" end,
+	function(t) return "★ " .. t .. " ★" end,
+	function(t) return "꧁ " .. t .. " ꧂" end,
+	function(t) return "♛ " .. t .. " ♛" end,
+	function(t) return "⚡ " .. t .. " ⚡" end,
+	function(t) return "『 👑 " .. t .. " 』" end,
+}
+
+R.Colors = {
+	Color3.fromRGB(255, 70, 70), Color3.fromRGB(255, 150, 40), Color3.fromRGB(255, 220, 50),
+	Color3.fromRGB(70, 220, 110), Color3.fromRGB(40, 200, 255), Color3.fromRGB(80, 110, 255),
+	Color3.fromRGB(170, 80, 255), Color3.fromRGB(255, 90, 200), Color3.fromRGB(255, 255, 255),
+	Color3.fromRGB(20, 20, 20),
+}
+
+-- RGB: ألوان تتغير تلقائياً
+R.lastRgb = 0
+connect(RunService.Heartbeat, function()
+	local now = os.clock()
+	local hue = (now * state.rgbSpeed) % 1
+	local color = Color3.fromHSV(hue, 0.85, 1)
+
+	-- ثيم الواجهة (عندك بس) — كل فريم عشان تكون ناعمة
+	if state.rgbUi and state.guiVisible then
+		THEME.Accent = color
+		THEME.Accent2 = Color3.fromHSV((hue + 0.15) % 1, 0.85, 1)
+		local sequence = ColorSequence.new(THEME.Accent, THEME.Accent2)
+		for _, g in ipairs(UI.Gradients) do
+			if g.Transparency.Keypoints[1].Value < 0.5 then
+				g.Color = sequence
+			end
+		end
+	end
+
+	-- الريموتات: بفاصل زمني عشان ما نرسل كثير
+	if now - R.lastRgb < state.rgbInterval then return end
+	R.lastRgb = now
+	if state.rgbName then
+		task.spawn(R.setColor, "nameColor", color)
+	end
+	if state.rgbBio then
+		task.spawn(R.setColor, "bioColor", Color3.fromHSV((hue + 0.5) % 1, 0.85, 1))
+	end
+	if state.rgbCar then
+		task.spawn(R.setColor, "carColor", color)
+	end
+	if state.rgbHouse then
+		task.spawn(R.setColor, "houseColor", color)
+	end
+end)
+
+-- المنزل: ندوّر على البيوت وأصحابها في الماب
+R.houseCache, R.houseCacheTime = {}, -math.huge
+
+local function ownerOf(model)
+	for _, obj in ipairs(model:GetDescendants()) do
+		if (obj:IsA("ObjectValue") or obj:IsA("StringValue")) and obj.Name:lower():find("owner") then
+			local value = obj.Value
+			if typeof(value) == "Instance" and value:IsA("Player") then
+				return value
+			elseif type(value) == "string" and value ~= "" then
+				return Players:FindFirstChild(value)
+			end
+		end
+	end
+	local attribute = model:GetAttribute("Owner") or model:GetAttribute("OwnerName")
+	if type(attribute) == "string" then
+		return Players:FindFirstChild(attribute)
+	elseif type(attribute) == "number" then
+		return Players:GetPlayerByUserId(attribute)
+	end
+	return nil
+end
+
+function R.houses()
+	if os.clock() - R.houseCacheTime < 8 then
+		return R.houseCache
+	end
+	local list = {}
+	for _, folder in ipairs(Workspace:GetChildren()) do
+		local lower = folder.Name:lower()
+		if lower:find("lot") or lower:find("house") or lower:find("propert") then
+			for _, model in ipairs(folder:GetChildren()) do
+				if model:IsA("Model") then
+					local owner = ownerOf(model)
+					if owner then
+						table.insert(list, { Model = model, Owner = owner })
+					end
+				end
+			end
+		end
+	end
+	R.houseCache, R.houseCacheTime = list, os.clock()
+	return list
+end
+
+function R.myHouse()
+	for _, house in ipairs(R.houses()) do
+		if house.Owner == player then
+			return house
+		end
+	end
+	return nil
+end
+
+function R.teleportToHouse(house)
+	if not house then
+		notify("ما لقيت بيت — اختار بيت أول من الماب", THEME.Danger, "🏠")
+		return
+	end
+	local ok, pivot = pcall(function()
+		return house.Model:GetPivot()
+	end)
+	if ok then
+		local size = house.Model:GetExtentsSize()
+		-- قدام البيت من برّا
+		F.teleport(pivot * CFrame.new(0, 3, size.Z / 2 + 6))
+		notify("انتقلت لبيت " .. house.Owner.DisplayName, THEME.Success, "🏠")
+	end
+end
+
+-----------------------------------------------------------
 -- صفحة 1: الرئيسية
 -----------------------------------------------------------
 newPage("🏠", "الرئيسية")
@@ -2780,6 +3031,50 @@ toggle("سيارة تطير", "اركب أي سيارة وطير فيها بات
 	flyControls.Visible = (state.fly or state.carFly) and UserInputService.TouchEnabled
 end)
 slider("سرعة الطيران بالسيارة", "carFlySpeed", 20, 500, 10, "%d")
+
+-- صف ألوان (نستخدمه بأكثر من صفحة)
+local function colorSwatches(searchText, methodKey, onPick)
+	local c = card(96, searchText)
+	local row = create("Frame", {
+		Position = UDim2.new(0, 12, 0, 10),
+		Size = UDim2.new(1, -24, 0, 70),
+		BackgroundTransparency = 1,
+		Parent = c,
+	}, {
+		create("UIGridLayout", {
+			CellSize = UDim2.new(0, 30, 0, 30),
+			CellPadding = UDim2.new(0, 8, 0, 8),
+			HorizontalAlignment = Enum.HorizontalAlignment.Right,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+	for i, color in ipairs(R.Colors) do
+		local swatch = create("TextButton", {
+			BackgroundColor3 = color,
+			AutoButtonColor = false,
+			Text = "",
+			LayoutOrder = i,
+			Parent = row,
+		}, { corner(15), stroke(THEME.Stroke, 2, 0.2) })
+		swatch.MouseButton1Click:Connect(function()
+			onPick(color)
+		end)
+	end
+	if methodKey then
+		local switchMethod = smallButton(c, "🔁 طريقة ثانية", UDim2.new(0, 12, 1, -34), UDim2.new(0, 110, 0, 26), false)
+		switchMethod.MouseButton1Click:Connect(function()
+			R.nextMethod(methodKey)
+		end)
+	end
+	return c
+end
+
+section("🎨 لون السيارة")
+colorSwatches("لون السيارة", "carColor", function(color)
+	R.setColor("carColor", color)
+	notify("تم إرسال لون السيارة (لازم تكون راكبها)", THEME.Accent2, "🚗")
+end)
+toggle("🌈 سيارة RGB", "لون السيارة يتغير تلقائياً", "rgbCar")
 
 action("انزل من السيارة", "تنزل فوراً من أي مقعد", "انزل", function()
 	local _, humanoid = getCharacter()
@@ -3414,6 +3709,181 @@ action("رجوع لآخر مكان آمن", "إذا علقت أو طرت", "رج
 	end
 end)
 
+local applyTheme -- تتعرّف بصفحة الإعدادات
+-----------------------------------------------------------
+-- صفحة: الرول بلاي (الاسم والبايو)
+-----------------------------------------------------------
+newPage("🎭", "الرول بلاي")
+
+section("🎭 اسمك فوق راسك")
+local rpNameBox = inputCard("الاسم", "اكتب اسمك الجديد", "تغيير", function(text)
+	R.setText("name", text)
+end)
+rpNameBox.Text = state.rpName
+
+do
+	local grid = buttonGrid(3, 34, #R.Decorations, "زخرفة الاسم")
+	for i, decorate in ipairs(R.Decorations) do
+		local sample = decorate(state.rpName ~= "" and state.rpName or "اسمك")
+		local btn = smallButton(grid, sample, UDim2.new(), UDim2.new(), false)
+		btn.LayoutOrder = i
+		btn.TextSize = 11
+		btn.MouseButton1Click:Connect(function()
+			local base = rpNameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
+			if base == "" then
+				notify("اكتب اسمك فوق أول", THEME.Danger, "⚠️")
+				return
+			end
+			local decorated = decorate(base)
+			rpNameBox.Text = decorated
+			R.setText("name", decorated)
+		end)
+	end
+end
+
+section("🎨 لون الاسم")
+colorSwatches("لون الاسم", "nameColor", function(color)
+	R.setColor("nameColor", color)
+end)
+
+section("📝 البايو (تحت اسمك)")
+local rpBioBox = inputCard("البايو", "مثلاً: صاحب أقوى سكربت 👑", "تغيير", function(text)
+	R.setText("bio", text)
+end)
+rpBioBox.Text = state.rpBio
+
+section("🎨 لون البايو")
+colorSwatches("لون البايو", "bioColor", function(color)
+	R.setColor("bioColor", color)
+end)
+
+action("🔁 طريقة ثانية للاسم", "إذا الاسم ما تغيّر", "تبديل", function()
+	R.nextMethod("name")
+	R.nextMethod("bio")
+end)
+
+-----------------------------------------------------------
+-- صفحة: RGB
+-----------------------------------------------------------
+newPage("🌈", "RGB")
+
+section("🌈 ألوان تتغير تلقائياً")
+toggle("اسم RGB", "لون اسمك يتغير بكل الألوان", "rgbName")
+toggle("بايو RGB", "لون البايو يتغير", "rgbBio")
+toggle("سيارة RGB", "لون سيارتك يتغير (لازم تكون راكبها)", "rgbCar")
+toggle("بيت RGB", "لون بيتك يتغير", "rgbHouse")
+toggle("واجهة RGB", "ألوان السكربت نفسه تتغير (عندك بس)", "rgbUi", function(value)
+	if not value then
+		applyTheme(state.themeIndex)
+	end
+end)
+
+section("⚙️ إعدادات RGB")
+slider("سرعة تغيّر الألوان", "rgbSpeed", 0.05, 1.5, 0.05, "%.2f")
+slider("الفاصل بين كل لون (ثانية)", "rgbInterval", 0.15, 2, 0.05, "%.2f")
+do
+	local c = card(46, "")
+	c:SetAttribute("Search", nil)
+	label(c, {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 8),
+		Size = UDim2.new(1, -28, 0, 30),
+		Text = "💡 الفاصل الأقل = أنعم، بس لا تخليه قليل مرة عشان ما ينحسب سبام",
+		TextColor3 = THEME.SubText,
+		TextSize = 11,
+		Font = FONT_REG,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Right,
+	})
+end
+
+-----------------------------------------------------------
+-- صفحة: المنزل
+-----------------------------------------------------------
+newPage("🏠", "المنزل")
+
+section("🏠 بيتي")
+local myHouseStatus
+do
+	local c = card(54, "بيتي")
+	myHouseStatus = titles(c, "بيتك", "أدوّر على بيتك...")
+	local btn = smallButton(c, "انتقال", UDim2.new(0, 14, 0.5, -15), UDim2.new(0, 84, 0, 30), true)
+	btn.MouseButton1Click:Connect(function()
+		R.houseCacheTime = -math.huge
+		R.teleportToHouse(R.myHouse())
+	end)
+end
+
+section("🎨 لون البيت")
+colorSwatches("لون البيت", "houseColor", function(color)
+	R.setColor("houseColor", color)
+	notify("تم إرسال لون البيت", THEME.Accent2, "🏠")
+end)
+toggle("🌈 بيت RGB", "لون بيتك يتغير تلقائياً", "rgbHouse")
+
+section("🏘️ بيوت السيرفر")
+local houseList = create("Frame", {
+	Size = UDim2.new(1, 0, 0, 0),
+	AutomaticSize = Enum.AutomaticSize.Y,
+	BackgroundTransparency = 1,
+	LayoutOrder = nextOrder(),
+	Parent = currentPage.Frame,
+}, {
+	create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
+})
+
+local function refreshHouses()
+	for _, child in ipairs(houseList:GetChildren()) do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+	R.houseCacheTime = -math.huge
+	local houses = R.houses()
+	local mine = R.myHouse()
+	myHouseStatus.Text = mine and "✓ لقيت بيتك" or "ما لقيت بيت لك (اختار بيت من الماب)"
+	myHouseStatus.TextColor3 = mine and THEME.Success or THEME.SubText
+	if #houses == 0 then
+		local empty = create("Frame", {
+			Size = UDim2.new(1, 0, 0, 40),
+			BackgroundColor3 = THEME.Surface,
+			Parent = houseList,
+		}, { corner(10) })
+		label(empty, {
+			Size = UDim2.new(1, 0, 1, 0),
+			Text = "ما لقيت بيوت محجوزة حالياً",
+			TextColor3 = THEME.SubText,
+			TextSize = 12,
+			Font = FONT_REG,
+		})
+		return
+	end
+	for i, house in ipairs(houses) do
+		local row = create("Frame", {
+			Size = UDim2.new(1, 0, 0, 44),
+			BackgroundColor3 = THEME.Surface,
+			LayoutOrder = i,
+			Parent = houseList,
+		}, { corner(10), stroke(THEME.Stroke, 1, 0.5) })
+		label(row, {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -14, 0.5, 0),
+			Size = UDim2.new(1, -120, 1, 0),
+			Text = (house.Owner == player and "🏠 بيتي" or "🏡 بيت " .. house.Owner.DisplayName),
+			TextSize = 13,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			TextXAlignment = Enum.TextXAlignment.Right,
+		})
+		local go = smallButton(row, "انتقال", UDim2.new(0, 10, 0.5, -13), UDim2.new(0, 84, 0, 26), true)
+		go.MouseButton1Click:Connect(function()
+			R.teleportToHouse(house)
+		end)
+	end
+end
+
+action("تحديث القائمة", "يدوّر على البيوت من جديد", "تحديث", refreshHouses)
+task.defer(refreshHouses)
+
 -----------------------------------------------------------
 -- صفحة: الكاميرا
 -----------------------------------------------------------
@@ -3563,7 +4033,7 @@ newPage("⚙️", "الإعدادات")
 
 section("🎨 الثيم")
 local themeStrokes = {}
-local function applyTheme(index)
+function applyTheme(index)
 	state.themeIndex = index
 	scheduleSave()
 	local theme = CONFIG.Themes[index]
