@@ -52,6 +52,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="مولّد مفاتيح البريميوم")
     parser.add_argument("--count", type=int, default=0, help="عدد المفاتيح الجديدة")
     parser.add_argument("--days", type=int, default=0, help="مدة المفتاح بالأيام (0 = مدى الحياة)")
+    parser.add_argument("--minutes", type=int, default=0, help="مدة المفتاح بالدقائق (للتجربة)")
     parser.add_argument("--revoke", metavar="KEY", help="إلغاء مفتاح")
     parser.add_argument("--list", action="store_true", help="عرض عدد المفاتيح وتواريخ انتهائها")
     args = parser.parse_args()
@@ -64,8 +65,14 @@ def main() -> None:
         print("تم إلغاء المفتاح" if removed is not None else "المفتاح مو موجود")
 
     if args.count > 0:
-        expiry = int(time.time()) + args.days * 86400 if args.days > 0 else 0
-        label = f"{args.days} يوم" if args.days > 0 else "مدى الحياة"
+        duration = args.days * 86400 + args.minutes * 60
+        expiry = int(time.time()) + duration if duration > 0 else 0
+        if args.minutes > 0 and args.days == 0:
+            label = f"{args.minutes} دقيقة"
+        elif duration > 0:
+            label = f"{args.days} يوم" + (f" و {args.minutes} دقيقة" if args.minutes else "")
+        else:
+            label = "مدى الحياة"
         print(f"مفاتيح جديدة ({label}):")
         for _ in range(args.count):
             key = new_key()
