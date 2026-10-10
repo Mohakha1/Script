@@ -4,9 +4,12 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
-local remotes = ReplicatedStorage:WaitForChild("Remotes")
+-- نراقب ReplicatedStorage.Remotes إذا موجود، وإلا كل الريموتات في اللعبة
+local remotes = ReplicatedStorage:FindFirstChild("Remotes")
 local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 local IGNORED = { Ping = true }
+-- نحد كل ريموت بـ 4 تسجيلات بالثانية عشان ما تنزحم القائمة
+local rateWindow, rateCounts = os.clock(), {}
 local MAX_LOGS = 40
 local logs = {}
 local startTime = os.clock()
@@ -109,6 +112,13 @@ end)
 
 local function addLog(remote, method, args)
 	if not active then return end
+	local now = os.clock()
+	if now - rateWindow > 1 then
+		rateWindow = now
+		table.clear(rateCounts)
+	end
+	rateCounts[remote] = (rateCounts[remote] or 0) + 1
+	if rateCounts[remote] > 4 then return end
 	local parts = {}
 	for i = 1, args.n do
 		parts[i] = serialize(args[i])
@@ -140,7 +150,7 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 		if (method == "FireServer" or method == "InvokeServer")
 			and typeof(self) == "Instance"
 			and not IGNORED[self.Name]
-			and self:IsDescendantOf(remotes)
+			and (not remotes or self:IsDescendantOf(remotes))
 		then
 			local args = table.pack(...)
 			task.spawn(addLog, self, method, args)
