@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        ⚽  موسّع هيتبوكس الكرة  ⚽         ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v4.3                     ║
+	║                 v4.4                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift  (قابل للتغيير)
@@ -29,7 +29,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- الإعدادات الثابتة
 -----------------------------------------------------------
 local CONFIG = {
-	Version = "v4.3",
+	Version = "v4.4",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Hitbox_v4.json",
 	MinSize = 0.5,
@@ -76,6 +76,9 @@ local CONFIG = {
 	-- نظام المفتاح (البريميوم)
 	Keys = {
 		-- ملف المفاتيح: يحتوي بصمات SHA-256 بس، مو المفاتيح نفسها
+		-- GitHub API: يعطي آخر نسخة دايماً (بدون تخزين مؤقت)
+		ApiUrl = "https://api.github.com/repos/Mohakha1/Script/contents/keys.json?ref=claude/ball-hitbox-expander-wi7sjv",
+		-- احتياطي: الرابط المباشر (ممكن يتأخر لين 5 دقايق)
 		Url = "https://raw.githubusercontent.com/Mohakha1/Script/claude/ball-hitbox-expander-wi7sjv/keys.json",
 		Salt = "MohammedTN",
 		GetKeyLink = "", -- رابط الحصول على مفتاح (ديسكورد مثلاً)
@@ -299,16 +302,56 @@ local function normalizeKey(key)
 	return (key:upper():gsub("%s+", ""))
 end
 
+local function base64Decode(data)
+	local alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+	local lookup = {}
+	for i = 1, 64 do
+		lookup[alphabet:sub(i, i)] = i - 1
+	end
+	data = data:gsub("[^%w%+/]", "")
+	local out, bits, count = {}, 0, 0
+	for i = 1, #data do
+		bits = bits * 64 + lookup[data:sub(i, i)]
+		count += 6
+		if count >= 8 then
+			count -= 8
+			table.insert(out, string.char(math.floor(bits / 2 ^ count) % 256))
+			bits %= 2 ^ count
+		end
+	end
+	return table.concat(out)
+end
+
+-- نجيب ملف المفاتيح: من GitHub API أول، وإذا فشل من الرابط المباشر
+local function fetchKeyFile()
+	local ok, body = pcall(function()
+		return game:HttpGet(CONFIG.Keys.ApiUrl)
+	end)
+	if ok and type(body) == "string" then
+		local decoded, meta = pcall(function()
+			return HttpService:JSONDecode(body)
+		end)
+		if decoded and type(meta) == "table" and type(meta.content) == "string" then
+			return base64Decode(meta.content)
+		end
+	end
+	local okRaw, raw = pcall(function()
+		return game:HttpGet(CONFIG.Keys.Url .. "?t=" .. os.time())
+	end)
+	if okRaw and type(raw) == "string" then
+		return raw
+	end
+	return nil
+end
+
 -- يرجع: صح/غلط، رسالة، وقت الانتهاء
 local function verifyKey(key)
 	key = normalizeKey(key)
 	if key == "" then
 		return false, "اكتب المفتاح أول"
 	end
-	local ok, body = pcall(function()
-		return game:HttpGet(CONFIG.Keys.Url)
-	end)
-	if not ok or type(body) ~= "string" then
+	local body = fetchKeyFile()
+	if not body then
 		return false, "تعذّر الاتصال بسيرفر المفاتيح"
 	end
 	local decoded, data = pcall(function()
@@ -2425,8 +2468,13 @@ local function expiryText(expiry)
 	if not expiry or expiry == 0 then
 		return "مدى الحياة"
 	end
-	local days = math.max(0, math.ceil((expiry - os.time()) / 86400))
-	return "باقي " .. days .. " يوم"
+	local remaining = math.max(0, expiry - os.time())
+	if remaining < 3600 then
+		return "باقي " .. math.max(1, math.ceil(remaining / 60)) .. " دقيقة"
+	elseif remaining < 86400 then
+		return "باقي " .. math.ceil(remaining / 3600) .. " ساعة"
+	end
+	return "باقي " .. math.ceil(remaining / 86400) .. " يوم"
 end
 
 local function setPremium(active, expiry)
