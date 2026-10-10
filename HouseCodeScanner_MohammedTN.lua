@@ -1,12 +1,11 @@
--- 🔎 فحص كود البيت | صنع من قبل محمد TN
--- يدوّر بكل سكربتات اللعبة على الكود اللي يقفل البيت ويطرد ويفتح الأبواب
+-- 🔎 فحص كود البيت (3) | صنع من قبل محمد TN
+-- يطلّع كود LocalHouseControl كامل، وأوامر موديول PlayersHouse
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- النافذة أول عشان تشوف التقدّم
 local gui = Instance.new("ScreenGui")
 gui.Name = "MohammedTN_HouseCode"
 gui.ResetOnSpawn = false
@@ -60,132 +59,92 @@ local lines = {}
 local function add(text)
 	table.insert(lines, text)
 end
-local function status(text)
-	box.Text = "⏳ " .. text .. "\n\n" .. table.concat(lines, "\n")
+
+local function source(script)
+	local ok, result = pcall(decompile, script)
+	if ok and type(result) == "string" then
+		return result
+	end
+	return nil
 end
 
-local function short(obj)
-	return (obj:GetFullName():gsub("^Players%.[^%.]+%.PlayerGui%.MainGUIHandler%.", "Gui.")
-		:gsub("^Players%.[^%.]+%.PlayerScripts%.", "PS."):gsub("^ReplicatedStorage%.", "RS."))
+local function eachLine(text, fn)
+	local number = 0
+	for line in (text .. "\n"):gmatch("(.-)\n") do
+		number += 1
+		if fn(number, line) == false then break end
+	end
 end
 
-local getconsts = (debug and debug.getconstants) or getconstants
-local getprotos = (debug and debug.getprotos) or getprotos
-add("decompile: " .. tostring(typeof(decompile) == "function")
-	.. "  getscriptclosure: " .. tostring(typeof(getscriptclosure) == "function")
-	.. "  getconstants: " .. tostring(typeof(getconsts) == "function"))
-
--- 1) شو يرجّع decompile للسكربت اللي لقيناه قبل
+-- 1) LocalHouseControl كامل (قصير)
 local handler = playerGui:FindFirstChild("MainGUIHandler")
 local houseControl = handler and handler:FindFirstChild("HouseControl")
 houseControl = houseControl and houseControl:FindFirstChild("LocalHouseControl")
-if houseControl and typeof(decompile) == "function" then
-	local ok, source = pcall(decompile, houseControl)
-	source = tostring(source)
-	add("LocalHouseControl: " .. (ok and "تم" or "خطأ") .. " — الطول " .. #source)
-	add("أوله: " .. source:sub(1, 250):gsub("\n", " ⏎ "))
+add("===== LocalHouseControl =====")
+local hcSource = houseControl and source(houseControl)
+if hcSource then
+	eachLine(hcSource, function(n, line)
+		if line:match("%S") and not line:find("lua.expert", 1, true) then
+			add(n .. ": " .. line:gsub("^%s+", ""):sub(1, 170))
+		end
+	end)
+else
+	add("(ما لقيته)")
 end
 add("")
 
--- 2) نجمع كل السكربتات
-local KEYWORDS = { "LockDoor", "Lock", "Disallow", "Door", "Kick", "Ban", "Permission", "Roommate" }
-local scripts = {}
-local function collect(root)
-	if not root then return end
-	for _, obj in ipairs(root:GetDescendants()) do
-		if obj:IsA("LocalScript") or obj:IsA("ModuleScript") then
-			table.insert(scripts, obj)
+-- 2) Client_To_Client حول TryDisallow
+local p8 = playerGui:FindFirstChild("Player8Handler")
+local c2c = p8 and p8:FindFirstChild("Client_To_Client")
+add("===== Client_To_Client (الطرد) =====")
+local c2cSource = c2c and source(c2c)
+if c2cSource then
+	eachLine(c2cSource, function(n, line)
+		if (n >= 225 and n <= 240) or (n >= 296 and n <= 330) then
+			if line:match("%S") then
+				add(n .. ": " .. line:gsub("^%s+", ""):sub(1, 170))
+			end
 		end
-	end
+		if n > 330 then return false end
+	end)
+else
+	add("(ما لقيته)")
 end
-collect(playerGui)
-collect(player:FindFirstChild("PlayerScripts"))
-collect(ReplicatedStorage)
-add("عدد السكربتات: " .. #scripts)
 add("")
 
-local function matches(text)
-	for _, keyword in ipairs(KEYWORDS) do
-		if text:find(keyword, 1, true) then
-			return true
+-- 3) موديول PlayersHouse: كل الدوال والأوامر
+local modules = {}
+for _, root in ipairs({ ReplicatedStorage, playerGui, player:FindFirstChild("PlayerScripts") }) do
+	if root then
+		for _, obj in ipairs(root:GetDescendants()) do
+			if obj:IsA("ModuleScript") and (obj.Name == "PlayersHouse" or obj.Name:find("Permission") or obj.Name:find("HouseControl")) then
+				table.insert(modules, obj)
+			end
 		end
 	end
-	return false
 end
-
--- 3) طريقة سريعة: النصوص الثابتة داخل كل سكربت
-local hits = {}
-if typeof(getscriptclosure) == "function" and typeof(getconsts) == "function" then
-	add("== نصوص لها علاقة بالبيت ==")
-	for i, script in ipairs(scripts) do
-		if i % 25 == 0 then
-			status("نصوص " .. i .. "/" .. #scripts)
-			task.wait()
-		end
-		local found, seen = {}, {}
-		local function scan(fn, depth)
-			if depth > 6 or #found > 25 then return end
-			local ok, consts = pcall(getconsts, fn)
-			if ok and type(consts) == "table" then
-				for _, c in pairs(consts) do
-					if type(c) == "string" and #c < 80 and not seen[c] and matches(c) then
-						seen[c] = true
-						table.insert(found, c)
-					end
-				end
+for _, module in ipairs(modules) do
+	add("===== " .. module:GetFullName():gsub("^Players%.[^%.]+%.", "") .. " =====")
+	local text = source(module)
+	if text then
+		local printed = 0
+		eachLine(text, function(n, line)
+			local t = line:gsub("^%s+", "")
+			if t:find("function", 1, true) or t:find("Invoke", 1, true) or t:find("Fire", 1, true)
+				or t:find("Lock", 1, true) or t:find("Door", 1, true) or t:find("Permissions:", 1, true)
+				or t:find("require", 1, true) then
+				printed += 1
+				add(n .. ": " .. t:sub(1, 170))
 			end
-			if typeof(getprotos) == "function" then
-				local okP, protos = pcall(getprotos, fn)
-				if okP and type(protos) == "table" then
-					for _, proto in pairs(protos) do
-						scan(proto, depth + 1)
-					end
-				end
-			end
-		end
-		local ok, closure = pcall(getscriptclosure, script)
-		if ok and type(closure) == "function" then
-			scan(closure, 0)
-		end
-		if #found > 0 then
-			table.insert(hits, script)
-			add(short(script) .. ":")
-			add("   " .. table.concat(found, " | "))
-		end
+			if printed >= 90 then return false end
+		end)
+	else
+		add("(ما قدر يقرأه)")
 	end
 	add("")
 end
-
--- 4) نقرأ كود السكربتات اللي فيها كلمات البيت (أو كلها إذا ما في طريقة سريعة)
-if typeof(decompile) == "function" then
-	add("== أسطر الكود ==")
-	local list = #hits > 0 and hits or scripts
-	local printed, checked = 0, 0
-	for _, script in ipairs(list) do
-		if printed >= 80 or checked >= 120 then break end
-		checked += 1
-		status("كود " .. checked .. "/" .. math.min(#list, 120))
-		local ok, source = pcall(decompile, script)
-		if ok and type(source) == "string" and matches(source) then
-			local header = false
-			local number = 0
-			for line in (source .. "\n"):gmatch("(.-)\n") do
-				number += 1
-				local trimmed = line:gsub("^%s+", "")
-				if (trimmed:find("FireServer", 1, true) or trimmed:find("InvokeServer", 1, true)
-					or trimmed:find("Disallow", 1, true) or trimmed:find("LockDoor", 1, true)) then
-					if not header then
-						header = true
-						add("-- " .. short(script))
-					end
-					printed += 1
-					add(number .. ": " .. trimmed:sub(1, 170))
-					if printed >= 80 then break end
-				end
-			end
-		end
-		task.wait()
-	end
+if #modules == 0 then
+	add("ما لقيت موديول PlayersHouse")
 end
 
 local result = table.concat(lines, "\n")
