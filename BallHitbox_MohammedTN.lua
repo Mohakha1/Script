@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        ⚽  موسّع هيتبوكس الكرة  ⚽         ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v4.2                     ║
+	║                 v4.3                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift  (قابل للتغيير)
@@ -29,7 +29,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- الإعدادات الثابتة
 -----------------------------------------------------------
 local CONFIG = {
-	Version = "v4.2",
+	Version = "v4.3",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Hitbox_v4.json",
 	MinSize = 0.5,
@@ -72,6 +72,13 @@ local CONFIG = {
 		{ Name = "أحمر",   Accent = Color3.fromRGB(235, 64, 90),  Accent2 = Color3.fromRGB(255, 140, 60) },
 		{ Name = "أخضر",   Accent = Color3.fromRGB(46, 204, 113), Accent2 = Color3.fromRGB(0, 200, 180) },
 		{ Name = "ذهبي",   Accent = Color3.fromRGB(255, 190, 40), Accent2 = Color3.fromRGB(255, 120, 40) },
+	},
+	-- نظام المفتاح (البريميوم)
+	Keys = {
+		-- ملف المفاتيح: يحتوي بصمات SHA-256 بس، مو المفاتيح نفسها
+		Url = "https://raw.githubusercontent.com/Mohakha1/Script/claude/ball-hitbox-expander-wi7sjv/keys.json",
+		Salt = "MohammedTN",
+		GetKeyLink = "", -- رابط الحصول على مفتاح (ديسكورد مثلاً)
 	},
 	-- ضع روابطك هنا لتظهر في صفحة "عن السكربت" (اتركها فارغة لإخفائها)
 	Links = {
@@ -150,6 +157,7 @@ local state = {
 	themeIndex = 1,
 	floatingButton = UserInputService.TouchEnabled,
 	activeTab = 1,
+	licenseKey = "",
 
 	-- غير محفوظة
 	enabled = false,
@@ -163,7 +171,7 @@ local SAVED_KEYS = {
 	"prediction", "predictTime", "predictBounces", "predictLag", "predictCalibrate",
 	"predictLanding", "predictClosest", "predictLabels", "goalEntry", "showGoalFrame",
 	"goals", "goalWidth", "goalHeight", "showReplay", "showOrigins", "shotAssist", "assistCamera", "opponentPredict", "alert", "alertDistance", "toggleKey",
-	"quickKey", "themeIndex", "floatingButton", "activeTab",
+	"quickKey", "themeIndex", "floatingButton", "activeTab", "licenseKey",
 }
 
 -----------------------------------------------------------
@@ -218,6 +226,108 @@ local function scheduleSave()
 end
 
 loadSettings()
+
+-----------------------------------------------------------
+-- نظام المفتاح (البريميوم)
+-----------------------------------------------------------
+-- SHA-256: نقارن بصمة المفتاح بدل ما نحفظ المفاتيح كنص واضح
+local sha256
+do
+	local band, bxor, bnot = bit32.band, bit32.bxor, bit32.bnot
+	local rrotate, rshift = bit32.rrotate, bit32.rshift
+	local K = {
+		0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+		0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+		0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+		0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+		0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+		0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+		0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+		0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+	}
+
+	function sha256(message)
+		local length = #message
+		local bitLength = length * 8
+		message ..= "\128" .. string.rep("\0", (55 - length) % 64)
+		message ..= string.pack(">I4I4", math.floor(bitLength / 0x100000000), bitLength % 0x100000000)
+
+		local h0, h1, h2, h3 = 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a
+		local h4, h5, h6, h7 = 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+		local w = {}
+
+		for chunk = 1, #message, 64 do
+			for i = 0, 15 do
+				w[i] = string.unpack(">I4", message, chunk + i * 4)
+			end
+			for i = 16, 63 do
+				local s0 = bxor(rrotate(w[i - 15], 7), rrotate(w[i - 15], 18), rshift(w[i - 15], 3))
+				local s1 = bxor(rrotate(w[i - 2], 17), rrotate(w[i - 2], 19), rshift(w[i - 2], 10))
+				w[i] = (w[i - 16] + s0 + w[i - 7] + s1) % 0x100000000
+			end
+
+			local a, b, c, d, e, f, g, h = h0, h1, h2, h3, h4, h5, h6, h7
+			for i = 0, 63 do
+				local S1 = bxor(rrotate(e, 6), rrotate(e, 11), rrotate(e, 25))
+				local ch = bxor(band(e, f), band(bnot(e), g))
+				local temp1 = (h + S1 + ch + K[i + 1] + w[i]) % 0x100000000
+				local S0 = bxor(rrotate(a, 2), rrotate(a, 13), rrotate(a, 22))
+				local maj = bxor(band(a, b), band(a, c), band(b, c))
+				local temp2 = (S0 + maj) % 0x100000000
+				h, g, f, e = g, f, e, (d + temp1) % 0x100000000
+				d, c, b, a = c, b, a, (temp1 + temp2) % 0x100000000
+			end
+
+			h0 = (h0 + a) % 0x100000000
+			h1 = (h1 + b) % 0x100000000
+			h2 = (h2 + c) % 0x100000000
+			h3 = (h3 + d) % 0x100000000
+			h4 = (h4 + e) % 0x100000000
+			h5 = (h5 + f) % 0x100000000
+			h6 = (h6 + g) % 0x100000000
+			h7 = (h7 + h) % 0x100000000
+		end
+
+		return string.format("%08x%08x%08x%08x%08x%08x%08x%08x", h0, h1, h2, h3, h4, h5, h6, h7)
+	end
+end
+
+local premium = false
+local premiumExpiry = 0 -- 0 = مدى الحياة
+
+local function normalizeKey(key)
+	return (key:upper():gsub("%s+", ""))
+end
+
+-- يرجع: صح/غلط، رسالة، وقت الانتهاء
+local function verifyKey(key)
+	key = normalizeKey(key)
+	if key == "" then
+		return false, "اكتب المفتاح أول"
+	end
+	local ok, body = pcall(function()
+		return game:HttpGet(CONFIG.Keys.Url)
+	end)
+	if not ok or type(body) ~= "string" then
+		return false, "تعذّر الاتصال بسيرفر المفاتيح"
+	end
+	local decoded, data = pcall(function()
+		return HttpService:JSONDecode(body)
+	end)
+	if not decoded or type(data) ~= "table" or type(data.keys) ~= "table" then
+		return false, "ملف المفاتيح غير صالح"
+	end
+	local expiry = data.keys[sha256(CONFIG.Keys.Salt .. ":" .. key)]
+	if expiry == nil then
+		return false, "المفتاح غلط"
+	end
+	expiry = tonumber(expiry) or 0
+	if expiry > 0 and os.time() > expiry then
+		return false, "المفتاح منتهي"
+	end
+	return true, "تم التفعيل 💎", expiry
+end
+
 THEME.Accent = CONFIG.Themes[state.themeIndex].Accent
 THEME.Accent2 = CONFIG.Themes[state.themeIndex].Accent2
 
@@ -402,7 +512,7 @@ create("TextLabel", {
 	Parent = titleBar,
 })
 
-create("TextLabel", {
+local titleSubtitle = create("TextLabel", {
 	AnchorPoint = Vector2.new(1, 0),
 	Position = UDim2.new(1, -60, 0, 32),
 	Size = UDim2.new(1, -150, 0, 16),
@@ -479,6 +589,8 @@ local function tabPosition(index)
 	return UDim2.new((TAB_COUNT - index) / TAB_COUNT, 5, 0, 4)
 end
 
+local refreshLock -- تُعرّف لاحقاً (شاشة قفل البريميوم)
+
 local function selectTab(index, animated)
 	state.activeTab = index
 	for i, page in ipairs(pages) do
@@ -486,6 +598,9 @@ local function selectTab(index, animated)
 		tween(page.Button, 0.2, { TextColor3 = (i == index) and THEME.Text or THEME.SubText })
 	end
 	tween(tabIndicator, animated and 0.3 or 0, { Position = tabPosition(index) })
+	if refreshLock then
+		refreshLock()
+	end
 end
 
 local function newPage(title)
@@ -1677,7 +1792,7 @@ local function drawAssistPath(part, props, plr, forward, color, showLabels)
 	for i = 1, #points - 1 do
 		drawSegment(points[i], points[i + 1], color, 0.2 + 0.5 * (i / #points), 0.14)
 	end
-	local crossing = state.goalEntry and findGoalCrossing(result)
+	local crossing = premium and state.goalEntry and findGoalCrossing(result)
 	if crossing then
 		drawGoalCrossing(crossing, showLabels)
 	end
@@ -1689,7 +1804,7 @@ local function sameTeam(a, b)
 end
 
 local function drawShotAssists(camera)
-	if not (state.shotAssist or state.opponentPredict) then return end
+	if not premium or not (state.shotAssist or state.opponentPredict) then return end
 	local A = CONFIG.Analysis
 
 	-- مين معه الكرة: أقرب كرة بطيئة لكل لاعب
@@ -1865,7 +1980,7 @@ connect(RunService.RenderStepped, function()
 			local clearRadius = math.max(part.Size.X, part.Size.Y, part.Size.Z) * 0.6 + 0.5
 			drawPrediction(result, color, showLabels, part.Position, clearRadius)
 
-			local crossing = state.goalEntry and findGoalCrossing(result)
+			local crossing = premium and state.goalEntry and findGoalCrossing(result)
 			if crossing then
 				drawGoalCrossing(crossing, showLabels)
 			end
@@ -1876,14 +1991,17 @@ connect(RunService.RenderStepped, function()
 	end
 
 	updateShotRecording(now)
-	if state.goalEntry and state.showGoalFrame then
-		drawGoalFrames()
-	end
-	if state.showReplay then
-		drawReplay()
-	end
-	if state.showOrigins then
-		drawOrigins()
+	-- ميزات البريميوم
+	if premium then
+		if state.goalEntry and state.showGoalFrame then
+			drawGoalFrames()
+		end
+		if state.showReplay then
+			drawReplay()
+		end
+		if state.showOrigins then
+			drawOrigins()
+		end
 	end
 	drawShotAssists(camera)
 	hideUnused()
@@ -1902,6 +2020,12 @@ connect(RunService.RenderStepped, function()
 	-- تحديث المعلومات
 	if now - lastInfoUpdate > 0.15 then
 		lastInfoUpdate = now
+		-- انتهى الاشتراك أثناء اللعب
+		if premium and premiumExpiry > 0 and os.time() > premiumExpiry then
+			premium = false
+			refreshLock()
+			notify("انتهى اشتراك البريميوم", THEME.Danger)
+		end
 		if nearestLabel then
 			nearestLabel.Text = nearest < math.huge and string.format("%.1f م", nearest) or "—"
 		end
@@ -1915,9 +2039,16 @@ connect(RunService.RenderStepped, function()
 					or "—"
 				predictionLabels.Calib.Text = string.format("%.1f", focus.Entry.Props.Calib.Magnitude)
 				local crossing = focus.Crossing
-				predictionLabels.Goal.Text = crossing
-					and string.format(crossing.Inside and "هدف بعد %.2f ث" or "برّا (%.2f ث)", crossing.Time)
-					or (#getGoals() == 0 and "حدّد المرمى من تبويب التحليل" or "ما تروح للمرمى")
+				if not premium then
+					predictionLabels.Goal.Text = "💎 بريميوم"
+				elseif crossing then
+					predictionLabels.Goal.Text = string.format(
+						crossing.Inside and "هدف بعد %.2f ث" or "برّا (%.2f ث)",
+						crossing.Time
+					)
+				else
+					predictionLabels.Goal.Text = #getGoals() == 0 and "حدّد المرمى من تبويب التحليل" or "ما تروح للمرمى"
+				end
 			else
 				predictionLabels.Speed.Text = "لا توجد كرة متحركة"
 				predictionLabels.Landing.Text = "—"
@@ -1959,6 +2090,7 @@ local enableSwitch = makeSwitch(enableCard, state.enabled, function(value)
 end)
 
 -- الحجم + أحجام سريعة
+do
 local sizeCard = card(118)
 cardHeading(sizeCard, "حجم الهيتبوكس")
 
@@ -1988,10 +2120,12 @@ for i, preset in ipairs(CONFIG.SizePresets) do
 		sizeSlider.set(preset, true)
 	end)
 end
+end
 
 switchCard("حجم تلقائي حسب المسافة", "يكبر الهيتبوكس كلما ابتعدت الكرة", "autoSize")
 
 sectionHeader("📐 تكبير كل اتجاه")
+do
 
 local axisCard = card(196)
 local axisSliders = {}
@@ -2017,6 +2151,7 @@ axisResetBtn.MouseButton1Click:Connect(function()
 		slider.set(1, true)
 	end
 end)
+end
 
 -----------------------------------------------------------
 -- صفحة 2: التوقّع
@@ -2025,6 +2160,7 @@ newPage(TAB_NAMES[2])
 
 switchCard("توقّع مسار الشوت", "خط ثلاثي الأبعاد يوضح وين رح تروح الكرة", "prediction")
 
+do
 local liveCard = card(166)
 cardHeading(liveCard, "📊 قراءة مباشرة")
 predictionLabels.Speed = statRow(liveCard, 38, "سرعة الكرة")
@@ -2033,6 +2169,7 @@ predictionLabels.Goal = statRow(liveCard, 78, "دخول المرمى")
 predictionLabels.Closest = statRow(liveCard, 98, "أقرب مرور منك")
 predictionLabels.Calib = statRow(liveCard, 118, "تصحيح المعايرة")
 predictionLabels.Ping = statRow(liveCard, 138, "البنق")
+end
 
 sliderCard("مدة التوقّع (ثانية)", "predictTime", 0.5, 5, 0.25, "%.2f")
 
@@ -2055,6 +2192,7 @@ sectionHeader("🥅 المرمى")
 switchCard("نقطة دخول المرمى", "وين ومتى الكرة رح تدخل المرمى", "goalEntry")
 switchCard("إظهار حدود المرمى", "خطوط توضّح المرمى اللي حفظته", "showGoalFrame")
 
+do
 local goalCard = card(124)
 cardHeading(goalCard, "حفظ المرمى")
 label(goalCard, {
@@ -2120,11 +2258,13 @@ for i, info in ipairs({
 	btn.MouseButton1Click:Connect(info[2])
 end
 refreshGoalStatus()
+end
 
 sliderCard("عرض المرمى", "goalWidth", 6, 50, 0.5, "%.1f")
 sliderCard("ارتفاع المرمى", "goalHeight", 3, 20, 0.5, "%.1f")
 
 sectionHeader("📈 إحصائيات الشوتات")
+do
 local statsCard = card(156)
 statLabels.Shots = statRow(statsCard, 12, "عدد الشوتات")
 statLabels.Max = statRow(statsCard, 34, "أقوى شوت")
@@ -2139,6 +2279,7 @@ resetStatsBtn.MouseButton1Click:Connect(function()
 	refreshStats()
 end)
 refreshStats()
+end
 
 sectionHeader("🔁 آخر شوت")
 switchCard("عرض آخر شوت", "الحقيقي (أبيض) جنب المتوقّع (ملوّن)", "showReplay")
@@ -2149,6 +2290,7 @@ switchCard("خط شوتك المتوقّع", "لما الكرة عندك: وين
 switchCard("حسب اتجاه الكاميرا", "شغّله إذا الشوت في الماب يمشي مع الكاميرا", "assistCamera")
 switchCard("توقّع شوت الخصم", "تقريبي: من اتجاهه وأسلوب شوتاته (أحمر)", "opponentPredict")
 
+do
 local learnCard = card(58)
 label(learnCard, {
 	AnchorPoint = Vector2.new(1, 0),
@@ -2169,6 +2311,181 @@ learnLabel = label(learnCard, {
 	TextXAlignment = Enum.TextXAlignment.Right,
 })
 refreshLearnLabel()
+end
+
+-----------------------------------------------------------
+-- شاشة قفل البريميوم (فوق تبويب التحليل)
+-----------------------------------------------------------
+local ANALYSIS_TAB = 3
+local subscriptionLabel -- يُنشأ في صفحة الإعدادات
+
+local lockOverlay = create("Frame", {
+	Name = "PremiumLock",
+	Size = UDim2.new(1, 0, 1, 0),
+	BackgroundColor3 = THEME.Background,
+	BackgroundTransparency = 0.03,
+	BorderSizePixel = 0,
+	Active = true,
+	Visible = false,
+	ZIndex = 20,
+	Parent = pageHolder,
+})
+
+local lockBox = create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.5, 0),
+	Size = UDim2.new(1, -24, 0, 340),
+	BackgroundColor3 = THEME.Surface,
+	BorderSizePixel = 0,
+	Parent = lockOverlay,
+}, { corner(14), stroke(THEME.Stroke, 1, 0.3) })
+
+create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 16),
+	Size = UDim2.new(0, 54, 0, 54),
+	BackgroundColor3 = Color3.new(1, 1, 1),
+	Parent = lockBox,
+}, {
+	corner(27),
+	accentGradient(45),
+	create("TextLabel", {
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		Text = "💎",
+		TextSize = 26,
+		Font = FONT_BOLD,
+	}),
+})
+
+local lockTitle = label(lockBox, {
+	Position = UDim2.new(0, 14, 0, 78),
+	Size = UDim2.new(1, -28, 0, 24),
+	Text = "ميزات بريميوم",
+	TextColor3 = Color3.new(1, 1, 1),
+	TextSize = 19,
+})
+accentGradient(0).Parent = lockTitle
+
+label(lockBox, {
+	Position = UDim2.new(0, 20, 0, 108),
+	Size = UDim2.new(1, -40, 0, 96),
+	Text = "🥅 نقطة دخول المرمى\n📈 إحصائيات الشوتات\n🔁 آخر شوت ومقارنة الدقة\n🟢 مساعد التسديد\n🔴 توقّع شوت الخصم",
+	TextColor3 = THEME.SubText,
+	TextSize = 13,
+	Font = FONT_REG,
+	TextWrapped = true,
+	TextYAlignment = Enum.TextYAlignment.Top,
+})
+
+local lockKeyBox = create("TextBox", {
+	Position = UDim2.new(0, 16, 0, 212),
+	Size = UDim2.new(1, -32, 0, 34),
+	BackgroundColor3 = THEME.SurfaceLight,
+	Text = "",
+	PlaceholderText = "MTN-XXXX-XXXX-XXXX",
+	PlaceholderColor3 = THEME.SubText,
+	TextColor3 = THEME.Text,
+	TextSize = 15,
+	Font = Enum.Font.Code,
+	ClearTextOnFocus = false,
+	Parent = lockBox,
+}, { corner(8), stroke(THEME.Stroke, 1) })
+
+local activateBtn = create("TextButton", {
+	Position = UDim2.new(0.5, 4, 0, 254),
+	Size = UDim2.new(0.5, -20, 0, 34),
+	BackgroundColor3 = Color3.new(1, 1, 1),
+	AutoButtonColor = false,
+	Text = "تفعيل",
+	TextColor3 = Color3.new(1, 1, 1),
+	TextSize = 15,
+	Font = FONT_BOLD,
+	Parent = lockBox,
+}, { corner(8), accentGradient(0) })
+
+local getKeyBtn = smallButton(lockBox, "احصل على مفتاح", UDim2.new(0, 16, 0, 254), UDim2.new(0.5, -20, 0, 34))
+getKeyBtn.TextSize = 13
+
+local lockStatus = label(lockBox, {
+	Position = UDim2.new(0, 16, 0, 298),
+	Size = UDim2.new(1, -32, 0, 30),
+	Text = "",
+	TextColor3 = THEME.SubText,
+	TextSize = 12,
+	Font = FONT_REG,
+	TextWrapped = true,
+})
+
+refreshLock = function()
+	lockOverlay.Visible = (state.activeTab == ANALYSIS_TAB) and not premium
+end
+
+local function expiryText(expiry)
+	if not expiry or expiry == 0 then
+		return "مدى الحياة"
+	end
+	local days = math.max(0, math.ceil((expiry - os.time()) / 86400))
+	return "باقي " .. days .. " يوم"
+end
+
+local function setPremium(active, expiry)
+	premium = active
+	premiumExpiry = expiry or 0
+	titleSubtitle.Text = "صنع من قبل " .. CONFIG.Author .. "  •  " .. CONFIG.Version .. (active and "  •  💎" or "")
+	if subscriptionLabel then
+		subscriptionLabel.Text = active and ("💎 بريميوم • " .. expiryText(premiumExpiry)) or "مجاني"
+		subscriptionLabel.TextColor3 = active and THEME.Success or THEME.SubText
+	end
+	refreshLock()
+end
+
+local activating = false
+local function activate(key, silent)
+	if activating then return end
+	activating = true
+	lockStatus.Text = "⏳ جاري التحقق..."
+	lockStatus.TextColor3 = THEME.SubText
+	task.spawn(function()
+		local ok, message, expiry = verifyKey(key)
+		activating = false
+		if ok then
+			state.licenseKey = normalizeKey(key)
+			scheduleSave()
+			lockStatus.Text = ""
+			setPremium(true, expiry)
+			notify(message .. " • " .. expiryText(expiry), THEME.Success)
+		else
+			lockStatus.Text = "❌ " .. message
+			lockStatus.TextColor3 = THEME.Danger
+			-- المفتاح الغلط أو المنتهي ما نحفظه
+			if message == "المفتاح غلط" or message == "المفتاح منتهي" then
+				state.licenseKey = ""
+				scheduleSave()
+			end
+			if not silent then
+				notify(message, THEME.Danger)
+			end
+		end
+	end)
+end
+
+activateBtn.MouseButton1Click:Connect(function()
+	activate(lockKeyBox.Text, false)
+end)
+lockKeyBox.FocusLost:Connect(function(enterPressed)
+	if enterPressed then
+		activate(lockKeyBox.Text, false)
+	end
+end)
+getKeyBtn.MouseButton1Click:Connect(function()
+	if CONFIG.Keys.GetKeyLink ~= "" and typeof(setclipboard) == "function" then
+		pcall(setclipboard, CONFIG.Keys.GetKeyLink)
+		notify("تم نسخ رابط الحصول على مفتاح", THEME.Success)
+	else
+		notify("تواصل مع " .. CONFIG.Author .. " للحصول على مفتاح", THEME.Accent2)
+	end
+end)
 
 -----------------------------------------------------------
 -- صفحة 4: المظهر
@@ -2275,6 +2592,7 @@ switchCard("خط التتبّع", "خط من شخصيتك إلى الكرة", "t
 switchCard("تنبيه قرب الكرة", "صوت وإشعار لما تقترب الكرة منك", "alert")
 sliderCard("مسافة التنبيه", "alertDistance", 5, 50, 1, "%d م")
 
+do
 local nameCard = card(84)
 cardHeading(nameCard, "اسم الكرة في اللعبة")
 
@@ -2319,6 +2637,7 @@ nameBox.FocusLost:Connect(function(enterPressed)
 		applyBallName()
 	end
 end)
+end
 
 -----------------------------------------------------------
 -- صفحة 6: الإعدادات
@@ -2374,6 +2693,22 @@ switchCard("زر عائم", "زر صغير على الشاشة لفتح الوا
 end)
 
 -- حفظ الإعدادات
+-- الاشتراك
+do
+local subCard = card(54)
+subscriptionLabel = cardTitle(subCard, "💎 الاشتراك", "مجاني")
+local enterKeyBtn = smallButton(subCard, "مفتاح", UDim2.new(0, 14, 0, 12), UDim2.new(0, 56, 0, 30))
+enterKeyBtn.MouseButton1Click:Connect(function()
+	selectTab(ANALYSIS_TAB, true)
+end)
+local logoutBtn = smallButton(subCard, "خروج", UDim2.new(0, 76, 0, 12), UDim2.new(0, 56, 0, 30))
+logoutBtn.MouseButton1Click:Connect(function()
+	state.licenseKey = ""
+	scheduleSave()
+	setPremium(false)
+	notify("تم تسجيل الخروج من البريميوم", THEME.Accent2)
+end)
+
 local saveCard = card(54)
 cardTitle(
 	saveCard,
@@ -2395,6 +2730,7 @@ resetSettingsBtn.MouseButton1Click:Connect(function()
 	end)
 	notify("تم حذف الإعدادات المحفوظة — أعد تشغيل السكربت", THEME.Accent2)
 end)
+end
 
 sectionHeader("📊 معلومات")
 
@@ -2405,6 +2741,7 @@ keyInfoLabel = statRow(infoCard, 56, "الواجهة / الهيتبوكس")
 
 sectionHeader("ℹ️ عن السكربت")
 
+do
 local links = {}
 for _, link in ipairs(CONFIG.Links) do
 	if link.Url ~= "" then
@@ -2458,6 +2795,7 @@ for i, link in ipairs(links) do
 			notify(link.Url, THEME.Accent2)
 		end
 	end)
+end
 end
 
 -----------------------------------------------------------
@@ -2607,5 +2945,12 @@ scanForBalls()
 refreshBallCount()
 refreshRayFilter()
 refreshKeyInfo()
+setPremium(false)
 setVisible(true)
 notify("مرحباً! تم تحميل السكربت " .. CONFIG.Version .. " — صنع من قبل " .. CONFIG.Author, THEME.Accent)
+
+-- تفعيل المفتاح المحفوظ تلقائياً
+if state.licenseKey ~= "" then
+	lockKeyBox.Text = state.licenseKey
+	activate(state.licenseKey, true)
+end
