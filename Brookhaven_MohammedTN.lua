@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        🏡  Brookhaven Hub  🏡             ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v1.0                     ║
+	║                 v2.0                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift
@@ -36,12 +36,12 @@ local playerGui = player:WaitForChild("PlayerGui")
 -----------------------------------------------------------
 local CONFIG = {
 	Name = "Brookhaven Hub",
-	Version = "v1.0",
+	Version = "v2.0",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Brookhaven.json",
-	Width = 620,
-	Height = 400,
-	Sidebar = 160,
+	Width = 690,
+	Height = 440,
+	Sidebar = 172,
 	Themes = {
 		{ Name = "بنفسجي", Accent = Color3.fromRGB(124, 92, 255), Accent2 = Color3.fromRGB(0, 190, 255) },
 		{ Name = "وردي",   Accent = Color3.fromRGB(255, 80, 160), Accent2 = Color3.fromRGB(255, 160, 90) },
@@ -107,6 +107,16 @@ local state = {
 	themeIndex = 1, activePage = 1,
 	toggleKey = "RightShift",
 	floatingButton = UserInputService.TouchEnabled,
+	-- v2.0
+	hover = false,
+	tpWalk = false, tpWalkSpeed = 3,
+	autoJump = false,
+	gravityOn = false, gravity = 80,
+	freecamSpeed = 60,
+	maxZoom = false, firstPerson = false,
+	lowGraphics = false, xray = false, fpsUnlock = false, fpsCap = 240,
+	trail = false, musicId = "", musicVolume = 0.6,
+	flyKey = "F", noclipKey = "N", screenshotKey = "P",
 
 	-- غير محفوظة
 	guiVisible = true,
@@ -119,6 +129,8 @@ local SAVED_KEYS = {
 	"fullbright", "noFog", "timeLock", "clockTime", "fov", "fovOn",
 	"antiFling", "antiVoid", "antiAfk", "antiSit",
 	"showStats", "blur", "themeIndex", "activePage", "toggleKey", "floatingButton",
+	"tpWalkSpeed", "autoJump", "gravity", "freecamSpeed", "maxZoom", "firstPerson",
+	"fpsUnlock", "fpsCap", "trail", "musicId", "musicVolume", "flyKey", "noclipKey", "screenshotKey",
 }
 
 local canSave = typeof(writefile) == "function" and typeof(readfile) == "function" and typeof(isfile) == "function"
@@ -374,6 +386,38 @@ local borderStroke = stroke(Color3.new(1, 1, 1), 2)
 borderStroke.Parent = mainFrame
 local borderGradient = accentGradient(0)
 borderGradient.Parent = borderStroke
+
+-- خلفية زجاجية: دوائر ألوان ناعمة تتحرك ببطء
+local decorBlobs = {}
+do
+	local decor = create("Frame", {
+		Name = "Decor",
+		Size = UDim2.new(1, -24, 1, -24),
+		Position = UDim2.new(0, 12, 0, 12),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		ZIndex = 0,
+		Parent = mainFrame,
+	})
+	for i, info in ipairs({ { 0.15, 0.2, 300 }, { 0.75, 0.85, 340 }, { 0.5, 0.5, 220 } }) do
+		local blob = create("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.new(info[1], 0, info[2], 0),
+			Size = UDim2.new(0, info[3], 0, info[3]),
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			ZIndex = 0,
+			Parent = decor,
+		}, { corner(info[3] / 2) })
+		local g = accentGradient(i * 70)
+		g.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.86),
+			NumberSequenceKeypoint.new(0.5, 0.92),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		g.Parent = blob
+		decorBlobs[i] = { Frame = blob, X = info[1], Y = info[2], Phase = i * 2.1 }
+	end
+end
 
 local mainScale = create("UIScale", { Scale = 1, Parent = mainFrame })
 local fitScale, openScale = 1, 0
@@ -706,27 +750,52 @@ local function nextOrder()
 end
 
 local function card(height, searchText)
+	local cardStroke = stroke(THEME.Stroke, 1, 0.5)
 	local c = create("Frame", {
 		Size = UDim2.new(1, 0, 0, height),
 		BackgroundColor3 = THEME.Surface,
+		BackgroundTransparency = 0.12,
 		BorderSizePixel = 0,
 		LayoutOrder = nextOrder(),
 		Parent = currentPage.Frame,
-	}, { corner(12), stroke(THEME.Stroke, 1, 0.5) })
+	}, { corner(12), cardStroke })
 	c:SetAttribute("Search", searchText or "")
+	-- البطاقة تضيء لما تمر عليها
+	c.MouseEnter:Connect(function()
+		tween(cardStroke, 0.2, { Color = THEME.Accent, Transparency = 0.2 })
+	end)
+	c.MouseLeave:Connect(function()
+		tween(cardStroke, 0.2, { Color = THEME.Stroke, Transparency = 0.5 })
+	end)
 	return c
 end
 
 local function section(text)
-	local s = label(currentPage.Frame, {
-		Size = UDim2.new(1, 0, 0, 22),
+	local s = create("Frame", {
+		Size = UDim2.new(1, 0, 0, 26),
+		BackgroundTransparency = 1,
+		LayoutOrder = nextOrder(),
+		Parent = currentPage.Frame,
+	})
+	s:SetAttribute("Section", true)
+	local bar = create("Frame", {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, 0, 0.5, 2),
+		Size = UDim2.new(0, 3, 0, 14),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		Parent = s,
+	}, { corner(2) })
+	accentGradient(90).Parent = bar
+	local text_ = label(s, {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -10, 0, 4),
+		Size = UDim2.new(1, -10, 1, -4),
 		Text = text,
 		TextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Right,
-		LayoutOrder = nextOrder(),
 	})
-	s:SetAttribute("Section", true)
-	accentize(s, "TextColor3", "Accent2")
+	accentize(text_, "TextColor3", "Accent2")
 	return s
 end
 
