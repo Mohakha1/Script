@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        ⚽  موسّع هيتبوكس الكرة  ⚽         ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v4.0                     ║
+	║                 v4.1                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift  (قابل للتغيير)
@@ -29,7 +29,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- الإعدادات الثابتة
 -----------------------------------------------------------
 local CONFIG = {
-	Version = "v4.0",
+	Version = "v4.1",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Hitbox_v4.json",
 	MinSize = 0.5,
@@ -47,6 +47,12 @@ local CONFIG = {
 		SettleSpeed = 2.5,       -- تحت هذه السرعة العمودية الكرة تتدحرج ونوقف
 		CalibrationRate = 0.12,  -- سرعة المعايرة التلقائية
 		CalibrationLimit = 80,   -- نتجاهل القفزات الكبيرة (اصطدامات)
+	},
+	Analysis = {
+		KickJump = 18,           -- زيادة مفاجئة بالسرعة = ركلة
+		MinShotSpeed = 25,       -- أقل سرعة نعتبرها شوت
+		RecordTime = 3,          -- مدة تسجيل المسار الحقيقي بعد الشوت
+		MaxOrigins = 20,         -- عدد أماكن التسديد المحفوظة
 	},
 	OutlineColors = {
 		Color3.fromRGB(124, 92, 255),
@@ -122,6 +128,13 @@ local state = {
 	predictLanding = true,
 	predictClosest = true,
 	predictLabels = true,
+	goalEntry = true,
+	showGoalFrame = true,
+	goals = {},
+	goalWidth = 24,
+	goalHeight = 8,
+	showReplay = true,
+	showOrigins = false,
 	alert = false,
 	alertDistance = 15,
 	toggleKey = "RightShift",
@@ -140,7 +153,8 @@ local SAVED_KEYS = {
 	"ballName", "size", "autoSize", "axisX", "axisY", "axisZ", "showHitbox",
 	"transparency", "outline", "colorIndex", "pulse", "esp", "tracer",
 	"prediction", "predictTime", "predictBounces", "predictLag", "predictCalibrate",
-	"predictLanding", "predictClosest", "predictLabels", "alert", "alertDistance", "toggleKey",
+	"predictLanding", "predictClosest", "predictLabels", "goalEntry", "showGoalFrame",
+	"goals", "goalWidth", "goalHeight", "showReplay", "showOrigins", "alert", "alertDistance", "toggleKey",
 	"quickKey", "themeIndex", "floatingButton", "activeTab",
 }
 
@@ -166,6 +180,13 @@ local function loadSettings()
 		end
 	end
 	-- التحقق من القيم
+	local goals = {}
+	for _, g in ipairs(state.goals) do
+		if type(g) == "table" and #g >= 5 and type(g[1]) == "number" then
+			table.insert(goals, g)
+		end
+	end
+	state.goals = goals
 	state.colorIndex = math.clamp(math.floor(state.colorIndex), 1, #CONFIG.OutlineColors)
 	state.themeIndex = math.clamp(math.floor(state.themeIndex), 1, #CONFIG.Themes)
 	if not pcall(function() return Enum.KeyCode[state.toggleKey] end) then state.toggleKey = "RightShift" end
@@ -414,7 +435,7 @@ local minimizeBtn = titleButton("—", 50)
 -----------------------------------------------------------
 -- التبويبات
 -----------------------------------------------------------
-local TAB_NAMES = { "⚽ الهيتبوكس", "🎯 التوقّع", "🎨 المظهر", "🧭 أدوات", "⚙️ إعدادات" }
+local TAB_NAMES = { "⚽ هيتبوكس", "🎯 توقّع", "📊 تحليل", "🎨 مظهر", "🧭 أدوات", "⚙️ إعدادات" }
 local TAB_COUNT = #TAB_NAMES
 
 local tabBar = create("Frame", {
@@ -1093,9 +1114,12 @@ local function networkLag()
 end
 
 -- يحاكي حركة الكرة ويرجع نقاط المسار والأحداث المهمة
-local function simulate(part, props, rootPos)
+-- options: { NoLag = true, Duration = ثواني } (للمقارنة مع المسار الحقيقي)
+local function simulate(part, props, rootPos, options)
+	options = options or {}
 	local P = CONFIG.Prediction
 	local step = P.Step
+	local duration = options.Duration or state.predictTime
 	local radius = math.min(props.Size.X, props.Size.Y, props.Size.Z) / 2
 	local accel = modelAcceleration(part, props)
 	if state.predictCalibrate then
@@ -1106,7 +1130,7 @@ local function simulate(part, props, rootPos)
 	local vel = part.AssemblyLinearVelocity
 
 	-- تعويض البنق: الكرة الحقيقية متقدمة عن اللي نشوفه
-	if state.predictLag then
+	if state.predictLag and not options.NoLag then
 		local lag = networkLag()
 		pos += vel * lag + 0.5 * accel * lag * lag
 		vel += accel * lag
@@ -1128,6 +1152,8 @@ local function simulate(part, props, rootPos)
 
 	local result = {
 		Points = { pos },
+		Times = { 0 },     -- وقت كل نقطة (لحساب دخول المرمى ومقارنة الدقة)
+		Radius = radius,
 		Bounces = {},
 		Landing = nil,    -- { Position, Time, Normal }
 		Closest = nil,    -- { Position, Time, Distance }
@@ -1148,7 +1174,12 @@ local function simulate(part, props, rootPos)
 
 	checkClosest(pos, 0)
 
-	while t < state.predictTime do
+	local function addPoint(point, time)
+		table.insert(result.Points, point)
+		table.insert(result.Times, time)
+	end
+
+	while t < duration do
 		local nextVel = vel + accel * step
 		local move = (vel + nextVel) * 0.5 * step
 		local hit = move.Magnitude > 1e-4 and Workspace:Spherecast(pos, radius, move, rayParams)
@@ -1158,7 +1189,7 @@ local function simulate(part, props, rootPos)
 			pos += move.Unit * hit.Distance
 			vel += accel * step * fraction
 			t += step * fraction
-			table.insert(result.Points, pos)
+			addPoint(pos, t)
 			checkClosest(pos, t)
 
 			local normal = hit.Normal
@@ -1179,9 +1210,16 @@ local function simulate(part, props, rootPos)
 				vel = tangentVel * (1 - math.clamp(friction, 0, 1) * 0.25) - normalVel * elasticity
 			end
 			if normal.Y > 0.6 and math.abs(vel:Dot(normal)) < P.SettleSpeed then
-				break -- الكرة صارت تتدحرج
+				-- الكرة صارت تتدحرج: نكمل الحساب على الأرض (الشوتات الأرضية)
+				vel -= normal * vel:Dot(normal)
+				accel -= normal * accel:Dot(normal)
+				pos += normal * 0.05
+				if vel.Magnitude < 1 then
+					break -- الكرة وقفت
+				end
+			else
+				pos += normal * 0.02
 			end
-			pos += normal * 0.02
 			bounces += 1
 		else
 			pos += move
@@ -1189,19 +1227,19 @@ local function simulate(part, props, rootPos)
 			t += step
 			stepIndex += 1
 			if stepIndex % P.PointEvery == 0 then
-				table.insert(result.Points, pos)
+				addPoint(pos, t)
 			end
 			checkClosest(pos, t)
 		end
 	end
 
-	table.insert(result.Points, pos)
+	addPoint(pos, t)
 	return result
 end
 
 -- مخزن قطع الرسم (نعيد استخدامها بدل ما ننشئ قطع كل فريم)
-local pool = { Segment = {}, Bounce = {}, Landing = {}, Closest = {} }
-local used = { Segment = 0, Bounce = 0, Landing = 0, Closest = 0 }
+local pool = { Segment = {}, Bounce = {}, Landing = {}, Closest = {}, Goal = {}, Origin = {} }
+local used = { Segment = 0, Bounce = 0, Landing = 0, Closest = 0, Goal = 0, Origin = 0 }
 
 local function vizPart(shape, size)
 	return create("Part", {
@@ -1263,6 +1301,14 @@ local factories = {
 		local billboard, text = vizLabel(part, Vector3.new(0, 2, 0))
 		return { Part = part, Billboard = billboard, Text = text }
 	end,
+	Goal = function()
+		local part = vizPart(Enum.PartType.Block, Vector3.new(2.4, 2.4, 0.15))
+		local billboard, text = vizLabel(part, Vector3.new(0, 2.4, 0))
+		return { Part = part, Billboard = billboard, Text = text }
+	end,
+	Origin = function()
+		return { Part = vizPart(Enum.PartType.Cylinder, Vector3.new(0.12, 1.6, 1.6)) }
+	end,
 }
 
 local function take(kind)
@@ -1288,21 +1334,27 @@ local function hideUnused()
 	end
 end
 
+local function drawSegment(a, b, color, transparency, thickness)
+	local length = (b - a).Magnitude
+	if length < 0.05 then return end
+	thickness = thickness or 0.18
+	local seg = take("Segment").Part
+	seg.Size = Vector3.new(thickness, thickness, length)
+	seg.CFrame = CFrame.lookAt((a + b) / 2, b)
+	seg.Color = color
+	seg.Transparency = transparency
+end
+
 local function drawPrediction(result, color, showLabels, ballPos, clearRadius)
 	local points = result.Points
 	local count = #points
 	for i = 1, count - 1 do
 		local a, b = points[i], points[i + 1]
-		local length = (b - a).Magnitude
 		-- ما نرسم داخل الكرة نفسها عشان تبان واضحة
 		local insideBall = (a - ballPos).Magnitude < clearRadius and (b - ballPos).Magnitude < clearRadius
-		if length > 0.05 and not insideBall then
-			local seg = take("Segment").Part
-			seg.Size = Vector3.new(0.18, 0.18, length)
-			seg.CFrame = CFrame.lookAt((a + b) / 2, b)
-			seg.Color = color
+		if not insideBall then
 			-- يبهت الخط كل ما بعد في المستقبل
-			seg.Transparency = 0.1 + 0.6 * (i / count)
+			drawSegment(a, b, color, 0.1 + 0.6 * (i / count))
 		end
 	end
 
@@ -1344,6 +1396,193 @@ end
 -- الحلقة الرئيسية
 -----------------------------------------------------------
 local predictionLabels = {} -- تُنشأ في صفحة التوقّع
+local statLabels = {}       -- تُنشأ في صفحة التحليل
+
+-----------------------------------------------------------
+-- التحليل: المرمى + الإحصائيات + آخر شوت
+-----------------------------------------------------------
+local UP = Vector3.new(0, 1, 0)
+local goalCache = nil
+
+-- المرمى محفوظ كـ { x, y, z, nx, nz }: نقطة نص خط المرمى + اتجاه الملعب
+local function getGoals()
+	if goalCache then return goalCache end
+	goalCache = {}
+	for _, g in ipairs(state.goals) do
+		if type(g) == "table" and #g >= 5 then
+			local normal = Vector3.new(g[4], 0, g[5])
+			if normal.Magnitude > 0.1 then
+				normal = normal.Unit
+				table.insert(goalCache, {
+					Origin = Vector3.new(g[1], g[2], g[3]),
+					Normal = normal,
+					Right = UP:Cross(normal),
+				})
+			end
+		end
+	end
+	return goalCache
+end
+
+-- أول مرة يقطع فيها المسار خط المرمى (من جهة الملعب)
+local function findGoalCrossing(result)
+	local points, times = result.Points, result.Times
+	local best
+	for _, goal in ipairs(getGoals()) do
+		for i = 1, #points - 1 do
+			local a, b = points[i], points[i + 1]
+			local da = (a - goal.Origin):Dot(goal.Normal)
+			local db = (b - goal.Origin):Dot(goal.Normal)
+			if da > 0 and db <= 0 then
+				local alpha = da / (da - db)
+				local point = a:Lerp(b, alpha)
+				local time = times[i] + (times[i + 1] - times[i]) * alpha
+				local lateral = (point - goal.Origin):Dot(goal.Right)
+				local height = point.Y - goal.Origin.Y
+				-- نعرض الشوتات اللي تمر قريب من المرمى بس
+				if math.abs(lateral) <= state.goalWidth and height <= state.goalHeight * 2 then
+					local inside = math.abs(lateral) <= state.goalWidth / 2 + result.Radius
+						and height >= -result.Radius
+						and height <= state.goalHeight + result.Radius
+					if not best or time < best.Time then
+						best = { Position = point, Time = time, Inside = inside, Goal = goal }
+					end
+				end
+				break
+			end
+		end
+	end
+	return best
+end
+
+local function drawGoalCrossing(crossing, showLabels)
+	local marker = take("Goal")
+	local color = crossing.Inside and THEME.Danger or THEME.Warning
+	marker.Part.CFrame = CFrame.lookAt(crossing.Position, crossing.Position + crossing.Goal.Normal)
+	marker.Part.Color = color
+	marker.Part.Transparency = 0.3
+	marker.Text.Text = string.format(crossing.Inside and "🥅 هدف • %.2f ث" or "↗ برّا • %.2f ث", crossing.Time)
+	marker.Text.TextColor3 = color
+	marker.Billboard.Enabled = showLabels
+end
+
+local function drawGoalFrames()
+	local white = Color3.new(1, 1, 1)
+	for _, goal in ipairs(getGoals()) do
+		local half = goal.Right * (state.goalWidth / 2)
+		local top = UP * state.goalHeight
+		local left, right = goal.Origin - half, goal.Origin + half
+		drawSegment(left, left + top, white, 0.45, 0.25)
+		drawSegment(right, right + top, white, 0.45, 0.25)
+		drawSegment(left + top, right + top, white, 0.45, 0.25)
+		drawSegment(left, right, white, 0.6, 0.15)
+	end
+end
+
+-- إحصائيات الشوتات
+local stats = { Shots = 0, MaxSpeed = 0, TotalSpeed = 0, LastSpeed = 0, LastError = nil }
+local shotOrigins = {}
+local lastShot = nil -- { Ball, StartTime, Predicted, Actual, ActualTimes, LastSample, Done }
+
+local function refreshStats()
+	if not statLabels.Shots then return end
+	statLabels.Shots.Text = tostring(stats.Shots)
+	statLabels.Max.Text = stats.Shots > 0 and string.format("%.1f", stats.MaxSpeed) or "—"
+	statLabels.Avg.Text = stats.Shots > 0 and string.format("%.1f", stats.TotalSpeed / stats.Shots) or "—"
+	statLabels.Last.Text = stats.Shots > 0 and string.format("%.1f", stats.LastSpeed) or "—"
+	statLabels.Error.Text = stats.LastError and string.format("%.2f م", stats.LastError) or "—"
+end
+
+-- مكان الكرة المتوقع في وقت معيّن
+local function pointAtTime(points, times, t)
+	for i = 2, #points do
+		if times[i] >= t then
+			local t0, t1 = times[i - 1], times[i]
+			local alpha = t1 > t0 and (t - t0) / (t1 - t0) or 0
+			return points[i - 1]:Lerp(points[i], alpha)
+		end
+	end
+	return nil
+end
+
+-- نقارن المسار الحقيقي بالمتوقع ونحسب متوسط الخطأ
+local function finishShot()
+	if not lastShot or lastShot.Done then return end
+	lastShot.Done = true
+	local predicted = lastShot.Predicted
+	local total, count = 0, 0
+	for i = 2, #lastShot.Actual do
+		local expected = pointAtTime(predicted.Points, predicted.Times, lastShot.ActualTimes[i])
+		if expected then
+			total += (expected - lastShot.Actual[i]).Magnitude
+			count += 1
+		end
+	end
+	if count > 0 then
+		stats.LastError = total / count
+		refreshStats()
+	end
+end
+
+local function onKick(part, props, speed, now)
+	finishShot()
+	stats.Shots += 1
+	stats.TotalSpeed += speed
+	stats.LastSpeed = speed
+	stats.MaxSpeed = math.max(stats.MaxSpeed, speed)
+	refreshStats()
+
+	table.insert(shotOrigins, part.Position - Vector3.new(0, props.Size.Y / 2, 0))
+	if #shotOrigins > CONFIG.Analysis.MaxOrigins then
+		table.remove(shotOrigins, 1)
+	end
+
+	-- نحفظ التوقّع لحظة الركلة (بدون تعويض البنق لأننا نقارن باللي نشوفه)
+	lastShot = {
+		Ball = part,
+		StartTime = now,
+		Predicted = simulate(part, props, nil, { NoLag = true, Duration = CONFIG.Analysis.RecordTime }),
+		Actual = { part.Position },
+		ActualTimes = { 0 },
+		LastSample = now,
+		Done = false,
+	}
+end
+
+local function updateShotRecording(now)
+	if not lastShot or lastShot.Done then return end
+	local ball = lastShot.Ball
+	local elapsed = now - lastShot.StartTime
+	if not ball.Parent or elapsed > CONFIG.Analysis.RecordTime then
+		finishShot()
+	elseif now - lastShot.LastSample >= 1 / 30 then
+		lastShot.LastSample = now
+		table.insert(lastShot.Actual, ball.Position)
+		table.insert(lastShot.ActualTimes, elapsed)
+	end
+end
+
+local function drawReplay()
+	if not lastShot then return end
+	local actual = lastShot.Actual
+	for i = 1, #actual - 1 do
+		drawSegment(actual[i], actual[i + 1], Color3.new(1, 1, 1), 0.15, 0.14)
+	end
+	local predicted = lastShot.Predicted.Points
+	for i = 1, #predicted - 1 do
+		drawSegment(predicted[i], predicted[i + 1], outlineColor(), 0.55, 0.12)
+	end
+end
+
+local function drawOrigins()
+	for _, point in ipairs(shotOrigins) do
+		local origin = take("Origin").Part
+		origin.CFrame = CFrame.new(point + Vector3.new(0, 0.07, 0)) * CFrame.Angles(0, 0, math.pi / 2)
+		origin.Color = THEME.Warning
+		origin.Transparency = 0.4
+	end
+end
+
 local lastInfoUpdate = 0
 local lastFilterUpdate = 0
 local alertActive = false
@@ -1432,6 +1671,18 @@ connect(RunService.RenderStepped, function()
 			props.Tracer.Visible = false
 		end
 
+		-- كشف الشوت: زيادة مفاجئة في سرعة الكرة
+		local speed = velocity.Magnitude
+		local prevSpeed = props.PrevSpeed or speed
+		props.PrevSpeed = speed
+		if speed - prevSpeed > CONFIG.Analysis.KickJump
+			and speed > CONFIG.Analysis.MinShotSpeed
+			and now - (props.LastKick or 0) > 0.5
+		then
+			props.LastKick = now
+			onKick(part, props, speed, now)
+		end
+
 		-- المعايرة تشتغل دايماً عشان تكون جاهزة لما تنطلق الكرة
 		calibrate(part, props, now)
 
@@ -1455,10 +1706,26 @@ connect(RunService.RenderStepped, function()
 			local showLabels = state.predictLabels and i == 1
 			local clearRadius = math.max(part.Size.X, part.Size.Y, part.Size.Z) * 0.6 + 0.5
 			drawPrediction(result, color, showLabels, part.Position, clearRadius)
+
+			local crossing = state.goalEntry and findGoalCrossing(result)
+			if crossing then
+				drawGoalCrossing(crossing, showLabels)
+			end
 			if i == 1 then
-				focus = { Entry = entry, Result = result }
+				focus = { Entry = entry, Result = result, Crossing = crossing }
 			end
 		end
+	end
+
+	updateShotRecording(now)
+	if state.goalEntry and state.showGoalFrame then
+		drawGoalFrames()
+	end
+	if state.showReplay then
+		drawReplay()
+	end
+	if state.showOrigins then
+		drawOrigins()
 	end
 	hideUnused()
 
@@ -1488,11 +1755,16 @@ connect(RunService.RenderStepped, function()
 					and string.format("%.1f م (%.2f ث)", result.Closest.Distance, result.Closest.Time)
 					or "—"
 				predictionLabels.Calib.Text = string.format("%.1f", focus.Entry.Props.Calib.Magnitude)
+				local crossing = focus.Crossing
+				predictionLabels.Goal.Text = crossing
+					and string.format(crossing.Inside and "هدف بعد %.2f ث" or "برّا (%.2f ث)", crossing.Time)
+					or (#getGoals() == 0 and "حدّد المرمى من تبويب التحليل" or "ما تروح للمرمى")
 			else
 				predictionLabels.Speed.Text = "لا توجد كرة متحركة"
 				predictionLabels.Landing.Text = "—"
 				predictionLabels.Closest.Text = "—"
 				predictionLabels.Calib.Text = "—"
+				predictionLabels.Goal.Text = "—"
 			end
 			predictionLabels.Ping.Text = string.format("%d ms", math.floor(networkLag() * 1000 + 0.5))
 		end
@@ -1594,13 +1866,14 @@ newPage(TAB_NAMES[2])
 
 switchCard("توقّع مسار الشوت", "خط ثلاثي الأبعاد يوضح وين رح تروح الكرة", "prediction")
 
-local liveCard = card(146)
+local liveCard = card(166)
 cardHeading(liveCard, "📊 قراءة مباشرة")
 predictionLabels.Speed = statRow(liveCard, 38, "سرعة الكرة")
 predictionLabels.Landing = statRow(liveCard, 58, "تنزل بعد")
-predictionLabels.Closest = statRow(liveCard, 78, "أقرب مرور منك")
-predictionLabels.Calib = statRow(liveCard, 98, "تصحيح المعايرة")
-predictionLabels.Ping = statRow(liveCard, 118, "البنق")
+predictionLabels.Goal = statRow(liveCard, 78, "دخول المرمى")
+predictionLabels.Closest = statRow(liveCard, 98, "أقرب مرور منك")
+predictionLabels.Calib = statRow(liveCard, 118, "تصحيح المعايرة")
+predictionLabels.Ping = statRow(liveCard, 138, "البنق")
 
 sliderCard("مدة التوقّع (ثانية)", "predictTime", 0.5, 5, 0.25, "%.2f")
 
@@ -1615,9 +1888,107 @@ switchCard("أقرب نقطة لك", "وين رح تمر الكرة أقرب ش�
 switchCard("إظهار الكتابات", "الوقت والمسافة فوق العلامات", "predictLabels")
 
 -----------------------------------------------------------
--- صفحة 3: المظهر
+-- صفحة 3: التحليل
 -----------------------------------------------------------
 newPage(TAB_NAMES[3])
+
+sectionHeader("🥅 المرمى")
+switchCard("نقطة دخول المرمى", "وين ومتى الكرة رح تدخل المرمى", "goalEntry")
+switchCard("إظهار حدود المرمى", "خطوط توضّح المرمى اللي حفظته", "showGoalFrame")
+
+local goalCard = card(124)
+cardHeading(goalCard, "حفظ المرمى")
+label(goalCard, {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -14, 0, 32),
+	Size = UDim2.new(1, -28, 0, 30),
+	Text = "قف على خط المرمى بالنص، ووجهك للملعب، واضغط حفظ",
+	TextColor3 = THEME.SubText,
+	TextSize = 12,
+	Font = FONT_REG,
+	TextWrapped = true,
+	TextXAlignment = Enum.TextXAlignment.Right,
+})
+local goalStatus = label(goalCard, {
+	Position = UDim2.new(0, 14, 0, 10),
+	Size = UDim2.new(0, 120, 0, 20),
+	Text = "",
+	TextSize = 12,
+	TextXAlignment = Enum.TextXAlignment.Left,
+})
+
+local function refreshGoalStatus()
+	goalCache = nil
+	local n = #getGoals()
+	goalStatus.Text = "المحفوظ: " .. n .. " / 2"
+	goalStatus.TextColor3 = n > 0 and THEME.Success or THEME.SubText
+end
+
+local function saveGoal(index)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		notify("ما لقيت شخصيتك", THEME.Danger)
+		return
+	end
+	local look = root.CFrame.LookVector
+	local facing = Vector3.new(look.X, 0, look.Z)
+	if facing.Magnitude < 0.1 then return end
+	facing = facing.Unit
+	local ground = Workspace:Raycast(root.Position, Vector3.new(0, -25, 0), rayParams)
+	local base = ground and ground.Position or (root.Position - Vector3.new(0, 3, 0))
+	-- ما نترك فراغ في القائمة (عشان JSON يحفظها صح)
+	index = math.min(index, #state.goals + 1)
+	state.goals[index] = { base.X, base.Y, base.Z, facing.X, facing.Z }
+	scheduleSave()
+	refreshGoalStatus()
+	notify("تم حفظ المرمى " .. index .. " ✓", THEME.Success)
+end
+
+local goalRow = horizontalRow(goalCard, 80, 30)
+for i, info in ipairs({
+	{ "حفظ مرمى 1", function() saveGoal(1) end },
+	{ "حفظ مرمى 2", function() saveGoal(2) end },
+	{ "مسح", function()
+		state.goals = {}
+		scheduleSave()
+		refreshGoalStatus()
+		notify("تم مسح المرامي", THEME.Accent2)
+	end },
+}) do
+	local btn = smallButton(goalRow, info[1], UDim2.new(), UDim2.new(1 / 3, -6, 1, 0))
+	btn.LayoutOrder = i
+	btn.MouseButton1Click:Connect(info[2])
+end
+refreshGoalStatus()
+
+sliderCard("عرض المرمى", "goalWidth", 6, 50, 0.5, "%.1f")
+sliderCard("ارتفاع المرمى", "goalHeight", 3, 20, 0.5, "%.1f")
+
+sectionHeader("📈 إحصائيات الشوتات")
+local statsCard = card(156)
+statLabels.Shots = statRow(statsCard, 12, "عدد الشوتات")
+statLabels.Max = statRow(statsCard, 34, "أقوى شوت")
+statLabels.Avg = statRow(statsCard, 56, "متوسط السرعة")
+statLabels.Last = statRow(statsCard, 78, "آخر شوت")
+statLabels.Error = statRow(statsCard, 100, "خطأ التوقّع (متوسط)")
+local resetStatsBtn = smallButton(statsCard, "تصفير الإحصائيات", UDim2.new(0, 14, 0, 122), UDim2.new(1, -28, 0, 26))
+resetStatsBtn.MouseButton1Click:Connect(function()
+	stats = { Shots = 0, MaxSpeed = 0, TotalSpeed = 0, LastSpeed = 0, LastError = nil }
+	table.clear(shotOrigins)
+	lastShot = nil
+	refreshStats()
+end)
+refreshStats()
+
+sectionHeader("🔁 آخر شوت")
+switchCard("عرض آخر شوت", "الحقيقي (أبيض) جنب المتوقّع (ملوّن)", "showReplay")
+switchCard("أماكن التسديد", "علامة مكان آخر 20 شوت", "showOrigins")
+
+-----------------------------------------------------------
+-- صفحة 4: المظهر
+-----------------------------------------------------------
+newPage(TAB_NAMES[4])
 
 switchCard("إظهار الهيتبوكس", "جعل الكرة شفافة لرؤية الحجم", "showHitbox")
 sliderCard("شفافية الكرة", "transparency", 0, 0.95, 0.05, "%.2f")
@@ -1710,9 +2081,9 @@ for i, theme in ipairs(CONFIG.Themes) do
 end
 
 -----------------------------------------------------------
--- صفحة 4: أدوات
+-- صفحة 5: أدوات
 -----------------------------------------------------------
-newPage(TAB_NAMES[4])
+newPage(TAB_NAMES[5])
 
 switchCard("مؤشر الكرة", "المسافة والسرعة فوق الكرة من خلف الجدران", "esp")
 switchCard("خط التتبّع", "خط من شخصيتك إلى الكرة", "tracer")
@@ -1765,9 +2136,9 @@ nameBox.FocusLost:Connect(function(enterPressed)
 end)
 
 -----------------------------------------------------------
--- صفحة 5: الإعدادات
+-- صفحة 6: الإعدادات
 -----------------------------------------------------------
-newPage(TAB_NAMES[5])
+newPage(TAB_NAMES[6])
 
 -- تغيير أزرار الاختصار
 local capturing = nil -- { key = "toggleKey", button = btn }
