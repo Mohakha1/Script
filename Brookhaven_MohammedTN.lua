@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        🏡  Brookhaven Hub  🏡             ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v2.5                     ║
+	║                 v2.6                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift
@@ -36,7 +36,12 @@ local playerGui = player:WaitForChild("PlayerGui")
 -----------------------------------------------------------
 local CONFIG = {
 	Name = "Brookhaven Hub",
-	Version = "v2.5",
+	Version = "v2.6",
+	-- الاسم والبايو اللي يطلعون فوق راسك أول ما تشغّل السكربت
+	Advert = {
+		Name = "👑 سكربت محمد TN",
+		Bio = "⚡ أقوى سكربت عربي | Brookhaven Hub",
+	},
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Brookhaven.json",
 	Width = 690,
@@ -121,7 +126,7 @@ local state = {
 	-- السكنات
 	wearSig = 0, outfits = {}, colorSig = 0, bundleSig = 0,
 	-- الرول بلاي + RGB + المنزل
-	rpName = "", rpBio = "", sigs = {},
+	rpName = "", rpBio = "", sigs = {}, advert = true,
 	rgbName = false, rgbBio = false, rgbCar = false, rgbHouse = false, rgbUi = false,
 	rgbSpeed = 0.25, rgbInterval = 0.4,
 	autoDoor = false, doorInterval = 1.5, houseGuard = false, houseAlert = false, guardFriends = true,
@@ -140,7 +145,7 @@ local SAVED_KEYS = {
 	"showStats", "blur", "themeIndex", "activePage", "toggleKey", "floatingButton",
 	"tpWalkSpeed", "autoJump", "gravity", "freecamSpeed", "maxZoom", "firstPerson",
 	"fpsUnlock", "fpsCap", "trail", "musicId", "musicVolume", "flyKey", "noclipKey", "screenshotKey",
-	"wearSig", "outfits", "colorSig", "bundleSig", "rpName", "rpBio", "sigs",
+	"wearSig", "outfits", "colorSig", "bundleSig", "rpName", "rpBio", "sigs", "advert",
 	"rgbSpeed", "rgbInterval", "doorInterval", "houseAlert", "guardFriends",
 	"glide", "glideSpeed", "spinSpeed", "deathTp",
 }
@@ -2596,14 +2601,12 @@ end
 
 -- طرق معروفة لكل ميزة (Solara ما يقدر يراقب الريموتات، فنجرّب)
 R.Methods = {
+	-- من SimpleSpy: RE["1RPNam1eTex1t"]:FireServer("RolePlayName"/"RolePlayBio", text)
 	name = {
-		function(text) return R.fire(R.re("1RPNam1eText"), "RolePlayName", text) end,
-		function(text) return R.fire(R.re("1RPNam1eText"), "Name", text) end,
-		function(text) return R.fire(R.re("1RPNam1eText"), text) end,
+		function(text) return R.fire(R.re("1RPNam1eTex1t"), "RolePlayName", text) end,
 	},
 	bio = {
-		function(text) return R.fire(R.re("1RPNam1eText"), "RolePlayBio", text) end,
-		function(text) return R.fire(R.re("1RPNam1eText"), "Bio", text) end,
+		function(text) return R.fire(R.re("1RPNam1eTex1t"), "RolePlayBio", text) end,
 	},
 	nameColor = {
 		function(color) return R.fire(R.re("1RPNam1eColo1r"), "PickingRPNameColor", color) end,
@@ -2693,6 +2696,22 @@ end
 function R.setColor(key, color)
 	local method = R.method(key)
 	method(color)
+end
+
+-- أول ما يشتغل السكربت: اسم وبايو عن السكربت يشوفهم كل السيرفر
+function R.advertise()
+	R.fire(R.re("1RPNam1eTex1t"), "RolePlayName", CONFIG.Advert.Name)
+	task.wait(0.3)
+	R.fire(R.re("1RPNam1eTex1t"), "RolePlayBio", CONFIG.Advert.Bio)
+end
+if state.advert then
+	task.delay(1.5, function()
+		if not player.Character then
+			player.CharacterAdded:Wait()
+			task.wait(1)
+		end
+		R.advertise()
+	end)
 end
 
 -- زخرفة الاسم
@@ -4101,6 +4120,13 @@ local applyTheme -- تتعرّف بصفحة الإعدادات
 -- صفحة: الرول بلاي (الاسم والبايو)
 -----------------------------------------------------------
 newPage("🎭", "الرول بلاي")
+
+section("📢 اسم السكربت")
+toggle("إعلان السكربت عند التشغيل", "أول ما تشغّل السكربت يصير اسمك وبايوك عن السكربت", "advert")
+action("حط اسم السكربت الحين", CONFIG.Advert.Name, "📢 حط", function()
+	R.advertise()
+	notify("صار اسمك: " .. CONFIG.Advert.Name, THEME.Success, "📢")
+end)
 
 section("🎭 اسمك فوق راسك")
 local rpNameBox = inputCard("الاسم", "اكتب اسمك الجديد", "تغيير", function(text)
