@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        ⚽  موسّع هيتبوكس الكرة  ⚽         ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v4.1                     ║
+	║                 v4.2                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift  (قابل للتغيير)
@@ -29,7 +29,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -- الإعدادات الثابتة
 -----------------------------------------------------------
 local CONFIG = {
-	Version = "v4.1",
+	Version = "v4.2",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Hitbox_v4.json",
 	MinSize = 0.5,
@@ -53,6 +53,11 @@ local CONFIG = {
 		MinShotSpeed = 25,       -- أقل سرعة نعتبرها شوت
 		RecordTime = 3,          -- مدة تسجيل المسار الحقيقي بعد الشوت
 		MaxOrigins = 20,         -- عدد أماكن التسديد المحفوظة
+		KickerRange = 10,        -- أبعد مسافة بين اللاعب والكرة لحظة الركلة
+		PossessionRange = 7,     -- الكرة "عند" اللاعب إذا كانت أقرب من كذا
+		PossessionSpeed = 15,    -- وأبطأ من كذا
+		LearnCount = 3,          -- نتعلم من آخر 3 شوتات لكل لاعب
+		MaxOpponents = 2,        -- أقصى عدد خصوم نتوقع شوتهم
 	},
 	OutlineColors = {
 		Color3.fromRGB(124, 92, 255),
@@ -135,6 +140,9 @@ local state = {
 	goalHeight = 8,
 	showReplay = true,
 	showOrigins = false,
+	shotAssist = true,
+	assistCamera = false,
+	opponentPredict = true,
 	alert = false,
 	alertDistance = 15,
 	toggleKey = "RightShift",
@@ -154,7 +162,7 @@ local SAVED_KEYS = {
 	"transparency", "outline", "colorIndex", "pulse", "esp", "tracer",
 	"prediction", "predictTime", "predictBounces", "predictLag", "predictCalibrate",
 	"predictLanding", "predictClosest", "predictLabels", "goalEntry", "showGoalFrame",
-	"goals", "goalWidth", "goalHeight", "showReplay", "showOrigins", "alert", "alertDistance", "toggleKey",
+	"goals", "goalWidth", "goalHeight", "showReplay", "showOrigins", "shotAssist", "assistCamera", "opponentPredict", "alert", "alertDistance", "toggleKey",
 	"quickKey", "themeIndex", "floatingButton", "activeTab",
 }
 
@@ -1126,11 +1134,12 @@ local function simulate(part, props, rootPos, options)
 		accel += props.Calib
 	end
 
-	local pos = part.Position
-	local vel = part.AssemblyLinearVelocity
+	-- Position / Velocity: نحاكي شوت افتراضي (مساعد التسديد)
+	local pos = options.Position or part.Position
+	local vel = options.Velocity or part.AssemblyLinearVelocity
 
 	-- تعويض البنق: الكرة الحقيقية متقدمة عن اللي نشوفه
-	if state.predictLag and not options.NoLag then
+	if state.predictLag and not options.NoLag and not options.Velocity then
 		local lag = networkLag()
 		pos += vel * lag + 0.5 * accel * lag * lag
 		vel += accel * lag
@@ -1524,7 +1533,89 @@ local function finishShot()
 	end
 end
 
+-- تعلّم أسلوب الشوت: نحفظ سرعة الكرة بالنسبة لاتجاه اللاعب (قدام / فوق / يمين)
+local kickHistory = {}   -- [UserId] = { {F, U, R}, ... }
+local globalHistory = {}
+
+local function flatForward(vector)
+	local flat = Vector3.new(vector.X, 0, vector.Z)
+	return flat.Magnitude > 0.05 and flat.Unit or nil
+end
+
+local function toLocalShot(forward, velocity)
+	local right = forward:Cross(UP)
+	return { F = velocity:Dot(forward), U = velocity.Y, R = velocity:Dot(right) }
+end
+
+local function fromLocalShot(forward, shot)
+	local right = forward:Cross(UP)
+	return forward * shot.F + UP * shot.U + right * shot.R
+end
+
+local function averageShot(list, count)
+	local n = math.min(#list, count)
+	if n == 0 then return nil end
+	local f, u, r = 0, 0, 0
+	for i = #list - n + 1, #list do
+		f += list[i].F
+		u += list[i].U
+		r += list[i].R
+	end
+	return { F = f / n, U = u / n, R = r / n }
+end
+
+local function learnedShot(userId)
+	local own = kickHistory[userId]
+	return (own and averageShot(own, CONFIG.Analysis.LearnCount))
+		or averageShot(globalHistory, 10)
+end
+
+local function rootOf(plr)
+	local character = plr.Character
+	return character and character:FindFirstChild("HumanoidRootPart")
+end
+
+-- أقرب لاعب للكرة لحظة الركلة = اللي سددها
+local function findKicker(position)
+	local best, bestRoot, bestDistance = nil, nil, CONFIG.Analysis.KickerRange
+	for _, plr in ipairs(Players:GetPlayers()) do
+		local root = rootOf(plr)
+		if root then
+			local distance = (root.Position - position).Magnitude
+			if distance < bestDistance then
+				best, bestRoot, bestDistance = plr, root, distance
+			end
+		end
+	end
+	return best, bestRoot
+end
+
+local learnLabel -- يُنشأ في صفحة التحليل
+
+local function refreshLearnLabel()
+	if not learnLabel then return end
+	local own = kickHistory[player.UserId]
+	learnLabel.Text = string.format("شوتاتك: %d  •  كل الشوتات: %d", own and #own or 0, #globalHistory)
+end
+
+local function learnKick(part, velocity)
+	-- الكرة تحركت شوي بعد الركلة، فنرجع لمكانها قبل فريم تقريباً
+	local kicker, root = findKicker(part.Position - velocity / 60)
+	if not kicker then return end
+	local forward = flatForward(root.CFrame.LookVector)
+	if not forward then return end
+	local shot = toLocalShot(forward, velocity)
+	local list = kickHistory[kicker.UserId] or {}
+	kickHistory[kicker.UserId] = list
+	table.insert(list, shot)
+	table.insert(globalHistory, shot)
+	if #list > 10 then table.remove(list, 1) end
+	if #globalHistory > 30 then table.remove(globalHistory, 1) end
+	refreshLearnLabel()
+end
+
 local function onKick(part, props, speed, now)
+	learnKick(part, part.AssemblyLinearVelocity)
 	finishShot()
 	stats.Shots += 1
 	stats.TotalSpeed += speed
@@ -1571,6 +1662,73 @@ local function drawReplay()
 	local predicted = lastShot.Predicted.Points
 	for i = 1, #predicted - 1 do
 		drawSegment(predicted[i], predicted[i + 1], outlineColor(), 0.55, 0.12)
+	end
+end
+
+-- يرسم مسار شوت افتراضي حسب أسلوب اللاعب واتجاهه
+local function drawAssistPath(part, props, plr, forward, color, showLabels)
+	local shot = learnedShot(plr.UserId)
+	if not shot then return false end
+	local result = simulate(part, props, nil, {
+		Position = part.Position,
+		Velocity = fromLocalShot(forward, shot),
+	})
+	local points = result.Points
+	for i = 1, #points - 1 do
+		drawSegment(points[i], points[i + 1], color, 0.2 + 0.5 * (i / #points), 0.14)
+	end
+	local crossing = state.goalEntry and findGoalCrossing(result)
+	if crossing then
+		drawGoalCrossing(crossing, showLabels)
+	end
+	return true
+end
+
+local function sameTeam(a, b)
+	return a.Team ~= nil and a.Team == b.Team
+end
+
+local function drawShotAssists(camera)
+	if not (state.shotAssist or state.opponentPredict) then return end
+	local A = CONFIG.Analysis
+
+	-- مين معه الكرة: أقرب كرة بطيئة لكل لاعب
+	local possessions = {}
+	for part, props in pairs(trackedBalls) do
+		if part.Parent and part.AssemblyLinearVelocity.Magnitude < A.PossessionSpeed then
+			for _, plr in ipairs(Players:GetPlayers()) do
+				local root = rootOf(plr)
+				if root then
+					local distance = (root.Position - part.Position).Magnitude
+					local current = possessions[plr]
+					if distance < A.PossessionRange and (not current or distance < current.Distance) then
+						possessions[plr] = { Part = part, Props = props, Root = root, Distance = distance }
+					end
+				end
+			end
+		end
+	end
+
+	local mine = possessions[player]
+	if state.shotAssist and mine then
+		local look = state.assistCamera and camera.CFrame.LookVector or mine.Root.CFrame.LookVector
+		local forward = flatForward(look)
+		if forward then
+			drawAssistPath(mine.Part, mine.Props, player, forward, THEME.Success, state.predictLabels)
+		end
+	end
+
+	if state.opponentPredict then
+		local count = 0
+		for plr, info in pairs(possessions) do
+			if count >= A.MaxOpponents then break end
+			if plr ~= player and not sameTeam(plr, player) then
+				local forward = flatForward(info.Root.CFrame.LookVector)
+				if forward and drawAssistPath(info.Part, info.Props, plr, forward, THEME.Danger, false) then
+					count += 1
+				end
+			end
+		end
 	end
 end
 
@@ -1727,6 +1885,7 @@ connect(RunService.RenderStepped, function()
 	if state.showOrigins then
 		drawOrigins()
 	end
+	drawShotAssists(camera)
 	hideUnused()
 
 	-- تنبيه قرب الكرة
@@ -1984,6 +2143,32 @@ refreshStats()
 sectionHeader("🔁 آخر شوت")
 switchCard("عرض آخر شوت", "الحقيقي (أبيض) جنب المتوقّع (ملوّن)", "showReplay")
 switchCard("أماكن التسديد", "علامة مكان آخر 20 شوت", "showOrigins")
+
+sectionHeader("🧠 مساعد التسديد")
+switchCard("خط شوتك المتوقّع", "لما الكرة عندك: وين رح تروح إذا سددت (أخضر)", "shotAssist")
+switchCard("حسب اتجاه الكاميرا", "شغّله إذا الشوت في الماب يمشي مع الكاميرا", "assistCamera")
+switchCard("توقّع شوت الخصم", "تقريبي: من اتجاهه وأسلوب شوتاته (أحمر)", "opponentPredict")
+
+local learnCard = card(58)
+label(learnCard, {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -14, 0, 8),
+	Size = UDim2.new(1, -28, 0, 18),
+	Text = "يتعلّم من كل شوت ينسدد في السيرفر",
+	TextColor3 = THEME.SubText,
+	TextSize = 12,
+	Font = FONT_REG,
+	TextXAlignment = Enum.TextXAlignment.Right,
+})
+learnLabel = label(learnCard, {
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -14, 0, 30),
+	Size = UDim2.new(1, -28, 0, 18),
+	Text = "",
+	TextSize = 13,
+	TextXAlignment = Enum.TextXAlignment.Right,
+})
+refreshLearnLabel()
 
 -----------------------------------------------------------
 -- صفحة 4: المظهر
