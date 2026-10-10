@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        🏡  Brookhaven Hub  🏡             ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v2.0                     ║
+	║                 v1.5                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift
@@ -36,7 +36,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -----------------------------------------------------------
 local CONFIG = {
 	Name = "Brookhaven Hub",
-	Version = "v2.0",
+	Version = "v1.5",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Brookhaven.json",
 	Width = 690,
@@ -117,6 +117,8 @@ local state = {
 	lowGraphics = false, xray = false, fpsUnlock = false, fpsCap = 240,
 	trail = false, musicId = "", musicVolume = 0.6,
 	flyKey = "F", noclipKey = "N", screenshotKey = "P",
+	-- السكنات
+	wearSig = 0, outfits = {},
 
 	-- غير محفوظة
 	guiVisible = true,
@@ -131,6 +133,7 @@ local SAVED_KEYS = {
 	"showStats", "blur", "themeIndex", "activePage", "toggleKey", "floatingButton",
 	"tpWalkSpeed", "autoJump", "gravity", "freecamSpeed", "maxZoom", "firstPerson",
 	"fpsUnlock", "fpsCap", "trail", "musicId", "musicVolume", "flyKey", "noclipKey", "screenshotKey",
+	"wearSig", "outfits",
 }
 
 local canSave = typeof(writefile) == "function" and typeof(readfile) == "function" and typeof(isfile) == "function"
@@ -1582,6 +1585,251 @@ function F.teleportToScreenPoint(position)
 end
 
 -----------------------------------------------------------
+-- السكنات: تستخدم ريموتات محرر الأفاتار حق Brookhaven
+-- (عشان التغيير يشوفه الكل، مو بس أنت)
+-----------------------------------------------------------
+local S = {}
+
+S.AccessoryFields = {
+	"HatAccessory", "HairAccessory", "FaceAccessory", "NeckAccessory", "ShouldersAccessory",
+	"FrontAccessory", "BackAccessory", "WaistAccessory",
+}
+S.SingleFields = {
+	"Shirt", "Pants", "GraphicTShirt", "Face", "Head", "Torso",
+	"LeftArm", "RightArm", "LeftLeg", "RightLeg",
+}
+
+function S.remote(name)
+	local folder = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+	return folder and folder:FindFirstChild(name)
+end
+
+function S.description(target)
+	local character = (target or player).Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return nil end
+	local ok, desc = pcall(function()
+		return humanoid:GetAppliedDescription()
+	end)
+	return ok and desc or nil
+end
+
+-- كل أرقام القطع اللي لابسها اللاعب
+function S.assetIds(desc)
+	local ids, list = {}, {}
+	local function add(id)
+		id = tonumber(id)
+		if id and id > 0 and not ids[id] then
+			ids[id] = true
+			table.insert(list, id)
+		end
+	end
+	if not desc then return ids, list end
+	for _, field in ipairs(S.AccessoryFields) do
+		for id in tostring(desc[field]):gmatch("%d+") do
+			add(id)
+		end
+	end
+	for _, field in ipairs(S.SingleFields) do
+		add(desc[field])
+	end
+	pcall(function()
+		for _, accessory in ipairs(desc:GetAccessories(true)) do
+			add(accessory.AssetId)
+		end
+	end)
+	return ids, list
+end
+
+function S.isWearing(id)
+	local ids = S.assetIds(S.description())
+	return ids[id] == true
+end
+
+-- ننتظر لين يتغير اللبس (أو نخلص الوقت)
+function S.waitFor(check, timeout)
+	local start = os.clock()
+	while os.clock() - start < (timeout or 1.5) do
+		if check() then
+			return true
+		end
+		task.wait(0.15)
+	end
+	return check()
+end
+
+-- طرق محتملة لإرسال رقم القطعة (Solara ما يقدر يراقب الريموتات، فنجرّب)
+S.WearSignatures = {
+	function(remote, id) return remote:InvokeServer(id) end,
+	function(remote, id) return remote:InvokeServer(tostring(id)) end,
+	function(remote, id) return remote:InvokeServer({ id }) end,
+	function(remote, id) return remote:InvokeServer(id, true) end,
+}
+
+S.busy = false
+
+function S.wear(id, silent)
+	id = tonumber(id)
+	if not id then
+		if not silent then notify("اكتب رقم صحيح", THEME.Danger, "⚠️") end
+		return false
+	end
+	if S.isWearing(id) then
+		return true
+	end
+	local remote = S.remote("Wear")
+	if not remote then
+		if not silent then notify("ما لقيت ريموت اللبس في هالماب", THEME.Danger, "⚠️") end
+		return false
+	end
+
+	-- نجرّب الطريقة المحفوظة أول، وبعدين الباقي
+	local order = {}
+	if state.wearSig > 0 and S.WearSignatures[state.wearSig] then
+		table.insert(order, state.wearSig)
+	end
+	for i = 1, #S.WearSignatures do
+		if i ~= state.wearSig then
+			table.insert(order, i)
+		end
+	end
+
+	for _, index in ipairs(order) do
+		pcall(S.WearSignatures[index], remote, id)
+		if S.waitFor(function() return S.isWearing(id) end, 1.6) then
+			if state.wearSig ~= index then
+				state.wearSig = index
+				scheduleSave()
+			end
+			return true
+		end
+	end
+	if not silent then
+		notify("ما قدرت ألبس " .. id .. " (ممكن القطعة مو مسموحة)", THEME.Danger, "👕")
+	end
+	return false
+end
+
+function S.removeAll()
+	local remote = S.remote("RemoveAllAssets")
+	if remote then
+		pcall(function()
+			remote:FireServer()
+		end)
+	end
+end
+
+function S.reset()
+	local remote = S.remote("ResetCharacterAppearance")
+	if remote then
+		pcall(function()
+			remote:FireServer()
+		end)
+	end
+	local original = game:GetService("ReplicatedStorage"):FindFirstChild("RE")
+	original = original and original:FindFirstChild("1Avata1rOrigina1l")
+	if original then
+		pcall(function()
+			original:FireServer()
+		end)
+	end
+end
+
+-- نسبة القطع المشتركة بين شكلي وقائمة قطع
+function S.matchRatio(targetList)
+	if #targetList == 0 then return 0 end
+	local mine = S.assetIds(S.description())
+	local same = 0
+	for _, id in ipairs(targetList) do
+		if mine[id] then
+			same += 1
+		end
+	end
+	return same / #targetList
+end
+
+-- يلبس قائمة قطع وحدة وحدة
+function S.wearList(list, label_)
+	local worn = 0
+	for i, id in ipairs(list) do
+		if S.wear(id, true) then
+			worn += 1
+		end
+		if label_ then
+			label_.Text = string.format("⏳ %d / %d", i, #list)
+		end
+	end
+	return worn
+end
+
+function S.copyAvatar(target, statusLabel)
+	if S.busy then
+		notify("انتظر، فيه عملية شغّالة", THEME.Warning, "⏳")
+		return
+	end
+	local _, list = S.assetIds(S.description(target))
+	if #list == 0 then
+		notify("ما قدرت أقرأ أفاتار " .. target.DisplayName, THEME.Danger, "⚠️")
+		return
+	end
+	S.busy = true
+	notify("أنسخ أفاتار " .. target.DisplayName .. "...", THEME.Accent2, "👕")
+	task.spawn(function()
+		-- 1) الطريقة المباشرة: ريموت الماب اللي يحوّلك لأفاتار لاعب
+		local direct = S.remote("ChangePlayerToAvatar")
+		if direct then
+			for _, arg in ipairs({ target.UserId, tostring(target.UserId), target.Name }) do
+				pcall(function()
+					direct:InvokeServer(arg)
+				end)
+				if S.waitFor(function() return S.matchRatio(list) >= 0.6 end, 2.5) then
+					S.busy = false
+					if statusLabel then statusLabel.Text = "✓ تم" end
+					notify("صرت لابس أفاتار " .. target.DisplayName .. " ✓", THEME.Success, "👕")
+					return
+				end
+			end
+		end
+		-- 2) الطريقة الاحتياطية: نشيل لبسنا ونلبس قطعهم وحدة وحدة
+		S.removeAll()
+		task.wait(0.6)
+		local worn = S.wearList(list, statusLabel)
+		S.busy = false
+		if statusLabel then statusLabel.Text = string.format("✓ %d / %d", worn, #list) end
+		notify(string.format("نسخت %d من %d قطعة من %s", worn, #list, target.DisplayName), worn > 0 and THEME.Success or THEME.Danger, "👕")
+	end)
+end
+
+function S.saveOutfit(name)
+	local _, list = S.assetIds(S.description())
+	if #list == 0 then
+		notify("ما قدرت أقرأ لبسك", THEME.Danger, "⚠️")
+		return false
+	end
+	table.insert(state.outfits, { name = name, ids = list })
+	scheduleSave()
+	notify("تم حفظ الطقم: " .. name .. " (" .. #list .. " قطعة)", THEME.Success, "💾")
+	return true
+end
+
+function S.wearOutfit(outfit, statusLabel)
+	if S.busy then return end
+	S.busy = true
+	task.spawn(function()
+		S.removeAll()
+		task.wait(0.6)
+		local ids = {}
+		for _, id in ipairs(outfit.ids or {}) do
+			table.insert(ids, tonumber(id))
+		end
+		local worn = S.wearList(ids, statusLabel)
+		S.busy = false
+		if statusLabel then statusLabel.Text = "" end
+		notify(string.format("لبست %s (%d / %d)", tostring(outfit.name), worn, #ids), THEME.Success, "👕")
+	end)
+end
+
+-----------------------------------------------------------
 -- صفحة 1: الرئيسية
 -----------------------------------------------------------
 newPage("🏠", "الرئيسية")
@@ -1875,7 +2123,7 @@ local function addPlayerRow(other)
 	label(row, {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -54, 0, 8),
-		Size = UDim2.new(1, -210, 0, 18),
+		Size = UDim2.new(1, -250, 0, 18),
 		Text = other.DisplayName,
 		TextSize = 13,
 		TextTruncate = Enum.TextTruncate.AtEnd,
@@ -1884,7 +2132,7 @@ local function addPlayerRow(other)
 	local info = label(row, {
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -54, 0, 27),
-		Size = UDim2.new(1, -210, 0, 16),
+		Size = UDim2.new(1, -250, 0, 16),
 		Text = "@" .. other.Name,
 		TextColor3 = THEME.SubText,
 		TextSize = 11,
@@ -1905,6 +2153,11 @@ local function addPlayerRow(other)
 		else
 			F.spectate(other)
 		end
+	end)
+	local copy = smallButton(row, "👕", UDim2.new(0, 148, 0.5, -15), UDim2.new(0, 40, 0, 30), false)
+	copy.TextSize = 15
+	copy.MouseButton1Click:Connect(function()
+		S.copyAvatar(other)
 	end)
 	local view = smallButton(row, "👁", UDim2.new(0, 102, 0.5, -15), UDim2.new(0, 40, 0, 30), false)
 	view.TextSize = 15
@@ -1944,6 +2197,205 @@ task.spawn(function()
 		spectateStatus.Text = F.spectating and ("تراقب: " .. F.spectating.DisplayName) or "ما تراقب أحد"
 		task.wait(1)
 	end
+end)
+
+-----------------------------------------------------------
+-- صفحة: السكنات
+-----------------------------------------------------------
+newPage("👕", "السكنات")
+
+do
+	local info = card(70, "")
+	info:SetAttribute("Search", nil)
+	label(info, {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 10),
+		Size = UDim2.new(1, -28, 0, 50),
+		Text = "👕 يستخدم محرر الأفاتار حق Brookhaven، فالكل يشوف لبسك.\nأول مرة يجرّب كم طريقة لين يلقى اللي تشتغل ويحفظها.",
+		TextColor3 = THEME.SubText,
+		TextSize = 12,
+		Font = FONT_REG,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		TextYAlignment = Enum.TextYAlignment.Top,
+	})
+end
+
+section("🧢 لبس قطعة بالرقم")
+inputCard("رقم القطعة (ID)", "مثلاً 48474313", "لبس", function(text)
+	local id = tonumber((text:gsub("%D", "")))
+	if not id then
+		notify("اكتب رقم القطعة", THEME.Danger, "⚠️")
+		return
+	end
+	task.spawn(function()
+		if S.wear(id) then
+			notify("لبست القطعة " .. id .. " ✓", THEME.Success, "🧢")
+		end
+	end)
+end)
+
+do
+	-- قطع جاهزة (تأكدت من أرقامها من موقع Roblox)
+	local quick = card(96, "قطع جاهزة")
+	local grid = create("Frame", {
+		Position = UDim2.new(0, 10, 0, 10),
+		Size = UDim2.new(1, -20, 1, -20),
+		BackgroundTransparency = 1,
+		Parent = quick,
+	}, {
+		create("UIGridLayout", {
+			CellSize = UDim2.new(1 / 3, -6, 0.5, -4),
+			CellPadding = UDim2.new(0, 8, 0, 8),
+			HorizontalAlignment = Enum.HorizontalAlignment.Right,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
+	local items = {
+		{ "👑 Dominus", 21070012 },
+		{ "⚔️ Valkyrie", 1365767 },
+		{ "🧢 Red Cap", 48474313 },
+		{ "💇 Bun Hair", 62724852 },
+		{ "🎃 Bighead", 1048037 },
+	}
+	for i, item in ipairs(items) do
+		local btn = smallButton(grid, item[1], UDim2.new(), UDim2.new(), false)
+		btn.LayoutOrder = i
+		btn.MouseButton1Click:Connect(function()
+			task.spawn(function()
+				if S.wear(item[2]) then
+					notify("لبست " .. item[1] .. " ✓", THEME.Success, "🧢")
+				end
+			end)
+		end)
+	end
+end
+
+section("👥 نسخ أفاتار لاعب")
+do
+	local copyCard = card(84, "نسخ أفاتار لاعب")
+	titles(copyCard, "اكتب اسم اللاعب (أو جزء منه)")
+	copyCard:FindFirstChildOfClass("TextLabel").Size = UDim2.new(1, -28, 0, 36)
+	local box = create("TextBox", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 40),
+		Size = UDim2.new(1, -170, 0, 30),
+		BackgroundColor3 = THEME.SurfaceLight,
+		Text = "",
+		PlaceholderText = "اسم اللاعب",
+		PlaceholderColor3 = THEME.SubText,
+		TextColor3 = THEME.Text,
+		TextSize = 13,
+		Font = FONT_BOLD,
+		ClearTextOnFocus = false,
+		Parent = copyCard,
+	}, { corner(8), stroke(THEME.Stroke, 1, 0.4) })
+	local status = label(copyCard, {
+		Position = UDim2.new(0, 108, 0, 40),
+		Size = UDim2.new(0, 46, 0, 30),
+		Text = "",
+		TextColor3 = THEME.SubText,
+		TextSize = 11,
+	})
+	local btn = smallButton(copyCard, "نسخ", UDim2.new(0, 14, 0, 40), UDim2.new(0, 88, 0, 30), true)
+	btn.MouseButton1Click:Connect(function()
+		local query = box.Text:lower():gsub("^%s+", ""):gsub("%s+$", "")
+		if query == "" then return end
+		for _, other in ipairs(Players:GetPlayers()) do
+			if other ~= player and (other.Name:lower():find(query, 1, true) or other.DisplayName:lower():find(query, 1, true)) then
+				S.copyAvatar(other, status)
+				return
+			end
+		end
+		notify("ما لقيت لاعب بهالاسم", THEME.Danger, "⚠️")
+	end)
+end
+action("أو من قائمة اللاعبين", "زر 👕 جنب أي لاعب في صفحة اللاعبين", "فتح", function()
+	for i, page in ipairs(pages) do
+		if page.Title == "اللاعبين" then
+			selectPage(i, true)
+		end
+	end
+end)
+
+section("💾 أطقمك المحفوظة")
+local outfitList = create("Frame", {
+	Size = UDim2.new(1, 0, 0, 0),
+	AutomaticSize = Enum.AutomaticSize.Y,
+	BackgroundTransparency = 1,
+}, {
+	create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
+})
+
+local function refreshOutfits()
+	for _, child in ipairs(outfitList:GetChildren()) do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+	for i, outfit in ipairs(state.outfits) do
+		local row = create("Frame", {
+			Size = UDim2.new(1, 0, 0, 44),
+			BackgroundColor3 = THEME.Surface,
+			LayoutOrder = i,
+			Parent = outfitList,
+		}, { corner(10), stroke(THEME.Stroke, 1, 0.5) })
+		label(row, {
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -14, 0.5, 0),
+			Size = UDim2.new(1, -170, 1, 0),
+			Text = string.format("👕 %s  (%d)", tostring(outfit.name), #(outfit.ids or {})),
+			TextSize = 13,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			TextXAlignment = Enum.TextXAlignment.Right,
+		})
+		local status = label(row, {
+			Position = UDim2.new(0, 126, 0, 0),
+			Size = UDim2.new(0, 50, 1, 0),
+			Text = "",
+			TextColor3 = THEME.SubText,
+			TextSize = 11,
+		})
+		local wearBtn = smallButton(row, "لبس", UDim2.new(0, 10, 0.5, -13), UDim2.new(0, 70, 0, 26), true)
+		wearBtn.MouseButton1Click:Connect(function()
+			S.wearOutfit(outfit, status)
+		end)
+		local del = smallButton(row, "🗑", UDim2.new(0, 86, 0.5, -13), UDim2.new(0, 34, 0, 26), false)
+		del.MouseButton1Click:Connect(function()
+			table.remove(state.outfits, i)
+			scheduleSave()
+			refreshOutfits()
+		end)
+	end
+end
+
+inputCard("حفظ لبسك الحالي", "اسم الطقم (مثلاً: طقم المدرسة)", "حفظ", function(text, box)
+	local name = text:gsub("^%s+", ""):gsub("%s+$", "")
+	if name == "" then
+		name = "طقم " .. (#state.outfits + 1)
+	end
+	if S.saveOutfit(name) then
+		box.Text = ""
+		refreshOutfits()
+	end
+end)
+outfitList.LayoutOrder = nextOrder()
+outfitList.Parent = currentPage.Frame
+refreshOutfits()
+
+section("🔄 أدوات")
+action("شيل كل اللبس", "يشيل كل القطع اللي لابسها", "شيل", function()
+	S.removeAll()
+	notify("شلت كل اللبس", THEME.Accent2, "👕")
+end)
+action("رجّع شكلي الأصلي", "يرجّع أفاتار حسابك الحقيقي", "رجوع", function()
+	S.reset()
+	notify("رجعت لشكلك الأصلي", THEME.Success, "👕")
+end)
+action("نسيان طريقة اللبس", "إذا تغيّر الماب وصار اللبس ما يشتغل", "إعادة", function()
+	state.wearSig = 0
+	scheduleSave()
+	notify("بيجرّب كل الطرق من جديد المرة الجاية", THEME.Accent2, "🔄")
 end)
 
 -----------------------------------------------------------
@@ -2236,7 +2688,16 @@ end)
 
 -- إطار متحرك
 connect(RunService.RenderStepped, function()
-	borderGradient.Rotation = (os.clock() * 60) % 360
+	local t = os.clock()
+	borderGradient.Rotation = (t * 60) % 360
+	if state.guiVisible then
+		for _, blob in ipairs(decorBlobs) do
+			blob.Frame.Position = UDim2.new(
+				blob.X + math.sin(t * 0.35 + blob.Phase) * 0.06, 0,
+				blob.Y + math.cos(t * 0.3 + blob.Phase) * 0.08, 0
+			)
+		end
+	end
 end)
 
 local camConnection
