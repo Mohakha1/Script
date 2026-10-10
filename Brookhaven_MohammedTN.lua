@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        🏡  Brookhaven Hub  🏡             ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v2.0                     ║
+	║                 v2.1                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift
@@ -36,7 +36,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -----------------------------------------------------------
 local CONFIG = {
 	Name = "Brookhaven Hub",
-	Version = "v2.0",
+	Version = "v2.1",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Brookhaven.json",
 	Width = 690,
@@ -1834,58 +1834,82 @@ function S.wearOutfit(outfit, statusLabel)
 	end)
 end
 
--- كتالوج قطع جاهزة (كل الأرقام متأكد منها من موقع Roblox)
+-- كتالوج أغراض غالية ومشهورة (الأرقام والأسعار متأكد منها من موقع Roblox)
+-- { الاسم، الرقم، السعر بالروبوكس }
 S.Catalog = {
-	{ Name = "💇 شعر", Items = {
-		{ "Belle Of Belfast", 2956239660 }, { "Pal Hair", 63690008 }, { "True Blue", 451221329 },
-		{ "Beanie + Hair", 1103003368 }, { "Beautiful Hair", 16630147 }, { "Straight Blonde", 376526888 },
-		{ "Chestnut Bun", 62724852 },
+	{ Name = "💎 دومينس", Items = {
+		{ "Dominus Astra", 162067148, 75000 }, { "Dominus Rex", 250395631, 75000 },
+		{ "Dominus Frigidus", 48545806, 39000 }, { "Dominus Infernus", 31101391, 26000 },
+		{ "Dominus Empyreus", 21070012, 13337 }, { "Dominus Messor", 64444871, 0 },
+		{ "Dominus Aureus", 138932314, 0 },
 	} },
-	{ Name = "😀 وجوه", Items = {
-		{ "Smile", 144075659 }, { "Chill", 7074764 }, { "Winning Smile", 616380929 },
-		{ "Joyful Smile", 209995366 }, { ":3", 15432080 }, { "Shocked", 147144644 },
-		{ "Laughing Fun", 226217449 }, { "Silly Fun", 7699174 }, { "Stitchface", 8329679 },
-		{ "Prankster", 20052135 }, { "Err...", 20418658 }, { "YAAAWWN", 162068415 },
+	{ Name = "😈 قرون", Items = {
+		{ "Poisoned Horns", 1744060292, 10000 }, { "Frozen Horns", 74891470, 5000 },
+		{ "Fiery Horns", 215718515, 3000 }, { "Black Iron Horns", 628771505, 2000 },
+		{ "Jewelled Abyss Horns", 7485912398, 95 }, { "Wicked Devil Horns", 5621576440, 95 },
 	} },
-	{ Name = "👑 تيجان", Items = {
-		{ "Dominus", 21070012 }, { "Valkyrie", 1365767 }, { "Holiday Crown", 139152472 },
-		{ "Rose Crown", 4998742293 }, { "8-Bit Crown", 10159600649 }, { "Gold Star", 95907863633330 },
+	{ Name = "👑 نادرة", Items = {
+		{ "Chronomalum", 215719463, 35000 }, { "Ice Valkyrie", 4390891467, 20000 },
+		{ "Valkyrie Helm", 1365767, 0 }, { "Sparkle Time Fedora", 1285307, 0 },
+		{ "The Ice Crown", 1323384, 0 }, { "Domino Crown", 1031429, 0 },
+		{ "The Void Star", 1125510, 0 }, { "Crimson Catseye", 1193866, 0 },
+		{ "Supa Dupa Fly Cap", 1609401184, 1000 }, { "Classic Fedora", 1029025, 900 },
+		{ "Business Hat", 19027209, 0 }, { "Adurite King", 439946101, 100 },
+	} },
+	{ Name = "🎧 سماعات ونظارات", Items = {
+		{ "Clockwork's Shades", 11748356, 19358 }, { "Clockwork's Headphones", 1235488, 3392 },
+		{ "Midnight Shades", 30331986, 250 }, { "Spikey Headphones", 8091854095, 95 },
 	} },
 	{ Name = "🪽 أجنحة", Items = {
-		{ "Angel Wings", 192557913 }, { "Gamer Wings", 5313324044 }, { "Black Wings", 215719598 },
-		{ "Devil Wings", 4876357616 }, { "Void Wings", 6472661790 }, { "Purity Wings", 6503401221 },
+		{ "Sparkling Angel Wings", 192557913, 1000 }, { "Void Wings", 6472661790, 140 },
+		{ "Gamer Wings", 5313324044, 140 }, { "Devil Wings", 4876357616, 140 },
+		{ "Purity Wings", 6503401221, 140 }, { "Black Wings", 215719598, 0 },
 	} },
-	{ Name = "👕 قمصان", Items = {
-		{ "Motorcycle", 144076358 }, { "Denim Jacket", 144076436 }, { "Roblox Shirt", 3670737444 },
-		{ "Blue Plaid", 398635081 }, { "Teal Shirt", 382537702 }, { "I <3 Pizza", 382537085 },
+	{ Name = "💇 شعر", Items = {
+		{ "Shaggy", 20573078, 0 }, { "Beautiful Hair", 16630147, 95 },
+		{ "Beautiful Brown Hair", 17877340, 95 }, { "Cinnamon Hair", 13745548, 80 },
+		{ "Popstar Hair", 5890690147, 79 }, { "Popular Girl Hair", 6501746646, 75 },
+		{ "Golden Hair", 13476917, 80 },
 	} },
-	{ Name = "👖 بناطيل", Items = {
-		{ "Ripped Skater", 398635338 }, { "Dark Pants", 97118097068276 }, { "Cargo Grey", 12598481285 },
-		{ "Pink Skirt", 106532575969759 }, { "Argyle Denim", 8187078621 }, { "Butterfly Ripped", 7001843110 },
-	} },
-	{ Name = "🧢 قبعات", Items = {
-		{ "Red Cap", 48474313 }, { "Roblox Cap", 607702162 }, { "'R' Cap", 417457461 },
-		{ "Butterfly Hat", 4849184439 }, { "Bighead", 1048037 }, { "Aviators", 376526673 },
+	{ Name = "😀 وجوه", Items = {
+		{ "Red Tango", 16652251, 0 }, { "Red Goof", 1191125008, 0 }, { "Yum!", 26019070, 0 },
+		{ "Zombie Face", 7506136, 0 }, { "Winning Smile", 616380929, 0 }, { "Chill", 7074764, 0 },
+		{ "Stitchface", 8329679, 0 }, { "Skeptic", 31117267, 0 }, { "Prankster", 20052135, 0 },
 	} },
 }
 
--- أطقم كاملة جاهزة
+-- لبس عادي يكمّل الأطقم
+S.Clothes = { Shirt = 144076358, Shirt2 = 144076436, Pants = 398635338, Pants2 = 12598481285 }
+
+-- أطقم كاملة جاهزة (أغراض غالية)
 S.Presets = {
-	{ name = "😎 كول", ids = { 451221329, 7074764, 144076358, 398635338, 376526673 } },
-	{ name = "👑 ملكي", ids = { 139152472, 16630147, 616380929, 144076436, 398635338, 192557913 } },
-	{ name = "😈 شيطان", ids = { 4876357616, 8329679, 1103003368, 398635081, 97118097068276 } },
-	{ name = "😇 ملاك", ids = { 6503401221, 376526888, 209995366, 382537702, 398635338 } },
-	{ name = "🎮 قيمر", ids = { 5313324044, 63690008, 20052135, 3670737444, 12598481285 } },
-	{ name = "💖 كيوت", ids = { 2956239660, 226217449, 4849184439, 382537085, 106532575969759 } },
-	{ name = "🖤 دارك", ids = { 6472661790, 1103003368, 147144644, 144076358, 12598481285 } },
-	{ name = "⚔️ محارب", ids = { 1365767, 63690008, 7317793, 144076436, 398635338 } },
+	{ name = "💎 الدومينس", ids = { 162067148, 11748356, 16630147, 16652251, 144076436, 398635338 } },
+	{ name = "😈 الشيطان", ids = { 215718515, 4876357616, 1191125008, 17877340, 144076358, 12598481285 } },
+	{ name = "❄️ الجليد", ids = { 48545806, 74891470, 6503401221, 7074764, 144076436, 398635338 } },
+	{ name = "☠️ السم", ids = { 1744060292, 6472661790, 7506136, 13745548, 144076358, 12598481285 } },
+	{ name = "👑 الملك", ids = { 1031429, 192557913, 17877340, 616380929, 144076436, 398635338 } },
+	{ name = "🎧 الستايل", ids = { 1235488, 30331986, 5890690147, 7074764, 144076358, 398635338 } },
+	{ name = "⚔️ المحارب", ids = { 215719463, 215719598, 31117267, 144076436, 12598481285 } },
+	{ name = "🔥 النار", ids = { 31101391, 215718515, 6472661790, 16652251, 144076358, 12598481285 } },
 }
 
--- بكجات أجسام (Bundles)
+-- بكجات أجسام (Bundles) { الاسم، الرقم، السعر }
 S.Bundles = {
-	{ "🦴 Korblox", 192 }, { "🎃 Headless", 201 }, { "🤖 Cyborg", 1 },
-	{ "🦸 26th Century", 2 }, { "⚔️ Cratus", 412 }, { "🧍 ROBLOX Boy", 109 }, { "👨 Man", 238 },
+	{ "🎃 Headless", 201, 31000 }, { "🦴 Korblox", 192, 17000 },
+	{ "⚔️ Cratus", 412, 600 }, { "🤖 Cyborg", 1, 0 },
+	{ "🦸 26th Century", 2, 0 }, { "🧍 ROBLOX Boy", 109, 0 }, { "👨 Man", 238, 0 },
 }
+
+-- 75000 → "75K"
+function S.formatPrice(price)
+	if not price or price <= 0 then
+		return "نادر"
+	elseif price >= 1000 then
+		local k = price / 1000
+		return (k == math.floor(k) and string.format("%dK", k) or string.format("%.1fK", k)) .. " R$"
+	end
+	return price .. " R$"
+end
 
 -- ألوان البشرة
 S.SkinTones = {
@@ -1989,9 +2013,13 @@ function S.randomOutfit(statusLabel)
 		local items = S.Catalog[categoryIndex].Items
 		return items[math.random(1, #items)][2]
 	end
-	-- شعر، وجه، قميص، بنطلون، + قطعة من التيجان أو الأجنحة أو القبعات
-	local extra = ({ 3, 4, 7 })[math.random(1, 3)]
-	S.wearOutfit({ name = "عشوائي", ids = { pick(1), pick(2), pick(5), pick(6), pick(extra) } }, statusLabel)
+	-- شعر + وجه + قطعتين غاليتين من أقسام مختلفة + لبس
+	local first = math.random(1, 5)
+	local second = (first % 5) + 1
+	S.wearOutfit({
+		name = "عشوائي",
+		ids = { pick(6), pick(7), pick(first), pick(second), S.Clothes.Shirt2, S.Clothes.Pants },
+	}, statusLabel)
 end
 
 -----------------------------------------------------------
@@ -3009,7 +3037,7 @@ end
 section("✨ أطقم جاهزة")
 do
 	local status = nil
-	local grid = buttonGrid(4, 38, #S.Presets, "أطقم جاهزة كول ملكي شيطان ملاك قيمر كيوت دارك محارب")
+	local grid = buttonGrid(4, 38, #S.Presets, "أطقم جاهزة دومينس شيطان جليد سم ملك ستايل محارب نار")
 	for i, preset in ipairs(S.Presets) do
 		local btn = smallButton(grid, preset.name, UDim2.new(), UDim2.new(), i == 1)
 		btn.LayoutOrder = i
@@ -3025,12 +3053,38 @@ do
 	end)
 end
 
+-- زر قطعة: الاسم + السعر (الغالي فوق 10K بلون ذهبي)
+local GOLD = Color3.fromRGB(255, 200, 60)
+local function itemButton(grid, name, price, order, primary)
+	local btn = smallButton(grid, "", UDim2.new(), UDim2.new(), primary)
+	btn.LayoutOrder = order
+	label(btn, {
+		Position = UDim2.new(0, 4, 0, 4),
+		Size = UDim2.new(1, -8, 0.55, -2),
+		Text = name,
+		TextSize = 12,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+	})
+	local priceLabel = label(btn, {
+		Position = UDim2.new(0, 4, 0.55, 0),
+		Size = UDim2.new(1, -8, 0.45, -4),
+		Text = (price and price >= 10000 and "💰 " or "") .. S.formatPrice(price),
+		TextColor3 = (price and price >= 10000) and GOLD or THEME.SubText,
+		TextSize = 10,
+		Font = FONT_REG,
+	})
+	if price and price >= 10000 then
+		priceLabel.Font = FONT_BOLD
+		stroke(GOLD, 1, 0.35).Parent = btn
+	end
+	return btn
+end
+
 section("🦴 بكجات الأجسام")
 do
-	local grid = buttonGrid(4, 38, #S.Bundles, "بكجات korblox headless كوربلوكس هيدلس")
+	local grid = buttonGrid(4, 44, #S.Bundles, "بكجات korblox headless كوربلوكس هيدلس")
 	for i, bundle in ipairs(S.Bundles) do
-		local btn = smallButton(grid, bundle[1], UDim2.new(), UDim2.new(), i <= 2)
-		btn.LayoutOrder = i
+		local btn = itemButton(grid, bundle[1], bundle[3], i, false)
 		btn.MouseButton1Click:Connect(function()
 			notify("ألبس " .. bundle[1] .. "...", THEME.Accent2, "🦴")
 			S.wearBundle(bundle)
@@ -3040,7 +3094,7 @@ end
 
 section("🛍️ متصفح القطع")
 do
-	local browser = card(46, "متصفح القطع شعر وجوه تيجان أجنحة قمصان بناطيل قبعات")
+	local browser = card(46, "متصفح القطع دومينس قرون نادرة سماعات أجنحة شعر وجوه")
 	local chips = create("ScrollingFrame", {
 		Position = UDim2.new(0, 8, 0, 6),
 		Size = UDim2.new(1, -16, 0, 34),
@@ -3064,7 +3118,7 @@ do
 	for _, category in ipairs(S.Catalog) do
 		maxItems = math.max(maxItems, #category.Items)
 	end
-	local grid, gridCard = buttonGrid(3, 34, maxItems, "")
+	local grid, gridCard = buttonGrid(3, 44, maxItems, "")
 	gridCard:SetAttribute("Search", nil)
 
 	local chipButtons = {}
@@ -3076,8 +3130,7 @@ do
 		end
 		local category = S.Catalog[index]
 		for i, item in ipairs(category.Items) do
-			local btn = smallButton(grid, item[1], UDim2.new(), UDim2.new(), false)
-			btn.LayoutOrder = i
+			local btn = itemButton(grid, item[1], item[3], i, false)
 			btn.MouseButton1Click:Connect(function()
 				task.spawn(function()
 					if S.wear(item[2]) then
@@ -3087,7 +3140,7 @@ do
 			end)
 		end
 		local rows = math.ceil(#category.Items / 3)
-		gridCard.Size = UDim2.new(1, 0, 0, rows * 42 + 12)
+		gridCard.Size = UDim2.new(1, 0, 0, rows * 52 + 12)
 		for i, chip in ipairs(chipButtons) do
 			chip.BackgroundColor3 = (i == index) and THEME.Accent or THEME.SurfaceLight
 			chip.TextColor3 = (i == index) and THEME.Text or THEME.SubText
