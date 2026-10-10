@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        🏡  Brookhaven Hub  🏡             ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v2.4                     ║
+	║                 v2.5                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift
@@ -36,7 +36,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -----------------------------------------------------------
 local CONFIG = {
 	Name = "Brookhaven Hub",
-	Version = "v2.4",
+	Version = "v2.5",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Brookhaven.json",
 	Width = 690,
@@ -124,7 +124,7 @@ local state = {
 	rpName = "", rpBio = "", sigs = {},
 	rgbName = false, rgbBio = false, rgbCar = false, rgbHouse = false, rgbUi = false,
 	rgbSpeed = 0.25, rgbInterval = 0.4,
-	autoDoor = false, doorInterval = 1, houseGuard = false, houseAlert = false, guardFriends = true,
+	autoDoor = false, doorInterval = 1.5, houseGuard = false, houseAlert = false, guardFriends = true,
 	glide = false, glideSpeed = 12, spin = false, spinSpeed = 6, deathTp = false,
 
 	-- غير محفوظة
@@ -2584,6 +2584,16 @@ function R.fire(remote, ...)
 	end)
 end
 
+-- PlayerGui.MainGUIHandler.HouseControlPanel.HouseColorPicker.SetColor
+function R.houseColorRemote()
+	local gui = player:FindFirstChild("PlayerGui")
+	local node = gui and gui:FindFirstChild("MainGUIHandler")
+	for _, name in ipairs({ "HouseControlPanel", "HouseColorPicker", "SetColor" }) do
+		node = node and node:FindFirstChild(name)
+	end
+	return node
+end
+
 -- طرق معروفة لكل ميزة (Solara ما يقدر يراقب الريموتات، فنجرّب)
 R.Methods = {
 	name = {
@@ -2609,7 +2619,8 @@ R.Methods = {
 		function(color) return R.fire(S.remote("SetColor"), color) end,
 		function(color) return R.fire(R.re("1Player1sCa1r"), "CarColor", color) end,
 	},
-	houseColor = {
+	houseTint = {
+		function(color) return R.fire(R.houseColorRemote(), color, false) end,
 		function(color) return R.fire(R.re("1Player1sHous1e"), "ColorPickHouse", color) end,
 		function(color) return R.fire(S.remote("Property:SetColor"), color) end,
 		function(color) return R.fire(R.re("1Player1sHous1e"), "PickingHouseColor", color) end,
@@ -2733,7 +2744,7 @@ connect(RunService.Heartbeat, function()
 		task.spawn(R.setColor, "carColor", color)
 	end
 	if state.rgbHouse then
-		task.spawn(R.setColor, "houseColor", color)
+		task.spawn(R.setColor, "houseTint", color)
 	end
 end)
 
@@ -2872,26 +2883,9 @@ end
 R.Methods.houseKick = {
 	function(t) return R.fire(R.perm("SoftDisallow"), t) end,
 	function(t) return R.fire(R.perm("Disallow"), t) end,
-	function(t) return R.fire(R.perm("SoftDisallow"), t.UserId) end,
-	function(t) return R.fire(R.perm("Disallow"), t.UserId) end,
-	function(t) return R.fire(R.re("1Player1sHous1e"), "KickPlayer", t) end,
-	function(t) return R.fire(R.re("1Player1sHous1e"), "Kick", t) end,
-	function(t) return R.fire(S.remote("Property:Permissions"), "Kick", t) end,
-	function(t) return R.fire(R.re("1Player1sHous1e"), "KickPlayer", t.Name) end,
 }
 R.Methods.houseBan = {
 	function(t) return R.fire(R.perm("Disallow"), t) end,
-	function(t) return R.fire(R.perm("Disallow"), t.UserId) end,
-	function(t) return R.fire(R.re("1Player1sHous1e"), "BanPlayer", t) end,
-	function(t) return R.fire(S.remote("Property:Permissions"), "Ban", t) end,
-	function(t) return R.fire(R.re("1Player1sHous1e"), "Ban", t) end,
-}
-R.Methods.houseLock = {
-	function(on) return R.fire(R.re("1Player1sHous1e"), "LockDoors", on) end,
-	function(on) return R.fire(R.re("1Player1sHous1e"), "LockDoors") end,
-	function(on) return R.fire(R.re("1Player1sHous1e"), on and "LockHouse" or "UnlockHouse") end,
-	function(on) return R.fire(R.re("1Player1sHous1e"), "Lock", on) end,
-	function(on) return R.fire(S.remote("Property:Permissions"), "Lock", on) end,
 }
 R.Methods.size = {
 	function(d) return R.fire(S.remote("IncrementBodySize"), d) end,
@@ -2978,67 +2972,34 @@ function R.kickAll(silent)
 	return count
 end
 
-function R.setLock(on)
+-- "LockDoors" نفس الأمر للقفل والفتح (كل ضغطة تبدّل)
+function R.toggleLock(silent)
 	if not R.myHouse() then
-		notify("لازم يكون عندك بيت أول", THEME.Danger, "🏠")
+		if not silent then
+			notify("لازم يكون عندك بيت أول", THEME.Danger, "🏠")
+		end
 		return
 	end
-	R.method("houseLock")(on)
-	notify(on and "تم قفل البيت 🔒" or "تم فتح القفل 🔓", THEME.Success, "🏠")
-end
-
--- الأبواب: نضغطها بنفس طريقة اللاعب (ClickDetector أو ProximityPrompt)
-function R.doors(house)
-	local list = {}
-	if not house then return list end
-	for _, obj in ipairs(house.Model:GetDescendants()) do
-		if obj:IsA("ClickDetector") or obj:IsA("ProximityPrompt") then
-			local parent = obj.Parent
-			local text = (parent and parent.Name or "") .. " " .. (parent and parent.Parent and parent.Parent.Name or "")
-			if obj:IsA("ProximityPrompt") then
-				text ..= " " .. obj.ActionText .. " " .. obj.ObjectText
-			end
-			text = text:lower()
-			if text:find("door") or text:find("gate") or text:find("garage") or text:find("open") then
-				table.insert(list, obj)
-			end
-		end
-	end
-	return list
-end
-
-function R.interact(obj)
-	if obj:IsA("ClickDetector") then
-		if typeof(fireclickdetector) == "function" then
-			return pcall(fireclickdetector, obj)
-		end
-		return false
-	end
-	if typeof(fireproximityprompt) == "function" then
-		return pcall(fireproximityprompt, obj)
-	end
-	return pcall(function()
-		obj:InputHoldBegin()
-		task.wait(obj.HoldDuration)
-		obj:InputHoldEnd()
-	end)
-end
-
-function R.toggleDoors(silent)
-	local doors = R.doors(R.myHouse())
-	if #doors == 0 then
-		if not silent then
-			notify("ما لقيت أبواب ببيتك", THEME.Danger, "🚪")
-		end
-		return 0
-	end
-	for _, door in ipairs(doors) do
-		task.spawn(R.interact, door)
-	end
+	R.fire(R.re("1Player1sHous1e"), "LockDoors")
 	if not silent then
-		notify(string.format("فتح/تسكير %d باب", #doors), THEME.Success, "🚪")
+		notify("تم قفل/فتح الأبواب 🔐", THEME.Success, "🏠")
 	end
-	return #doors
+end
+
+-- جرس الباب: Interactibles.New_DoorBellCam.PromptInteract
+function R.ringBell()
+	local house = R.myHouse()
+	local interactibles = house and house.Model:FindFirstChild("Interactibles")
+	if interactibles then
+		for _, obj in ipairs(interactibles:GetDescendants()) do
+			if obj.Name == "PromptInteract" and obj:IsA("RemoteEvent") and obj.Parent.Name:lower():find("doorbell") then
+				R.fire(obj)
+				notify("دق الجرس 🔔", THEME.Success, "🔔")
+				return
+			end
+		end
+	end
+	notify("ما لقيت جرس ببيتك", THEME.Danger, "🔔")
 end
 
 -- أنوار البيت (عندك بس)
@@ -3090,9 +3051,9 @@ end)
 R.lastDoor, R.lastGuard = 0, 0
 connect(RunService.Heartbeat, function()
 	local now = os.clock()
-	if state.autoDoor and now - R.lastDoor >= state.doorInterval then
+	if state.autoDoor and now - R.lastDoor >= math.max(state.doorInterval, 1) then
 		R.lastDoor = now
-		task.spawn(R.toggleDoors, true)
+		task.spawn(R.toggleLock, true)
 	end
 	if not (state.houseGuard or state.houseAlert) or now - R.lastGuard < 0.5 then return end
 	R.lastGuard = now
@@ -4245,20 +4206,12 @@ action("انتقال لداخل البيت", "توديك لنص بيتك", "دخ
 end)
 
 section("🔐 التحكم بالبيت")
-action("قفل البيت", "ما أحد يقدر يدخل", "🔒 قفل", function()
-	R.setLock(true)
+action("قفل / فتح الأبواب", "كل ضغطة تقفل أو تفتح أبواب بيتك", "🔐 تبديل", function()
+	R.toggleLock(false)
 end)
-action("فتح القفل", "الكل يقدر يدخل", "🔓 فتح", function()
-	R.setLock(false)
-end)
-action("🔁 طريقة ثانية للقفل", "إذا القفل ما اشتغل", "تبديل", function()
-	R.nextMethod("houseLock")
-end)
-action("الأبواب", "تفتح وتسكّر كل أبواب بيتك", "🚪 فتح/سكّر", function()
-	R.toggleDoors(false)
-end)
-toggle("باب تلقائي", "الأبواب تفتح وتسكّر لحالها", "autoDoor")
-slider("الفاصل بين كل فتحة (ثانية)", "doorInterval", 0.4, 5, 0.1, "%.1f")
+toggle("قفل وفتح تلقائي", "الأبواب تنقفل وتنفتح لحالها", "autoDoor")
+slider("الفاصل (ثانية)", "doorInterval", 1, 5, 0.1, "%.1f")
+action("جرس الباب", "يدق جرس بيتك", "🔔 دق", R.ringBell)
 action("الأنوار", "يضغط كل مفاتيح الأنوار ببيتك", "💡 تبديل", R.toggleLights)
 
 section("🚨 حماية البيت")
@@ -4352,8 +4305,8 @@ connect(Players.PlayerRemoving, function()
 end)
 
 section("🎨 لون البيت")
-colorSwatches("لون البيت", "houseColor", function(color)
-	R.setColor("houseColor", color)
+colorSwatches("لون البيت", "houseTint", function(color)
+	R.setColor("houseTint", color)
 	notify("تم إرسال لون البيت", THEME.Accent2, "🏠")
 end)
 toggle("🌈 بيت RGB", "لون بيتك يتغير تلقائياً", "rgbHouse")
