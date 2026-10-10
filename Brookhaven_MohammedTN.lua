@@ -2,7 +2,7 @@
 	╔══════════════════════════════════════════╗
 	║        🏡  Brookhaven Hub  🏡             ║
 	║          صنع من قبل: محمد TN             ║
-	║                 v2.2                     ║
+	║                 v2.3                     ║
 	╚══════════════════════════════════════════╝
 
 	• إظهار / إخفاء الواجهة : RightShift
@@ -36,7 +36,7 @@ local playerGui = player:WaitForChild("PlayerGui")
 -----------------------------------------------------------
 local CONFIG = {
 	Name = "Brookhaven Hub",
-	Version = "v2.2",
+	Version = "v2.3",
 	Author = "محمد TN",
 	SaveFile = "MohammedTN_Brookhaven.json",
 	Width = 690,
@@ -124,6 +124,8 @@ local state = {
 	rpName = "", rpBio = "", sigs = {},
 	rgbName = false, rgbBio = false, rgbCar = false, rgbHouse = false, rgbUi = false,
 	rgbSpeed = 0.25, rgbInterval = 0.4,
+	autoDoor = false, doorInterval = 1, houseGuard = false, houseAlert = false, guardFriends = true,
+	glide = false, glideSpeed = 12, spin = false, spinSpeed = 6, deathTp = false,
 
 	-- غير محفوظة
 	guiVisible = true,
@@ -139,7 +141,8 @@ local SAVED_KEYS = {
 	"tpWalkSpeed", "autoJump", "gravity", "freecamSpeed", "maxZoom", "firstPerson",
 	"fpsUnlock", "fpsCap", "trail", "musicId", "musicVolume", "flyKey", "noclipKey", "screenshotKey",
 	"wearSig", "outfits", "colorSig", "bundleSig", "rpName", "rpBio", "sigs",
-	"rgbSpeed", "rgbInterval",
+	"rgbSpeed", "rgbInterval", "doorInterval", "houseAlert", "guardFriends",
+	"glide", "glideSpeed", "spinSpeed", "deathTp",
 }
 
 local canSave = typeof(writefile) == "function" and typeof(readfile) == "function" and typeof(isfile) == "function"
@@ -2800,6 +2803,319 @@ function R.teleportToHouse(house)
 	end
 end
 
+function R.teleportInside(house)
+	if not house then
+		notify("ما لقيت بيت لك", THEME.Danger, "🏠")
+		return
+	end
+	local ok, cf = pcall(function()
+		return (house.Model:GetBoundingBox())
+	end)
+	if ok then
+		F.teleport(CFrame.new(cf.Position.X, cf.Position.Y, cf.Position.Z) + Vector3.new(0, 3, 0))
+	end
+end
+
+-- هل اللاعب داخل حدود البيت؟
+function R.inside(house, target)
+	local character = target.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	if not root or not house then return false end
+	local ok, cf, size = pcall(function()
+		return house.Model:GetBoundingBox()
+	end)
+	if not ok then return false end
+	local p = cf:PointToObjectSpace(root.Position)
+	return math.abs(p.X) <= size.X / 2 + 2 and math.abs(p.Y) <= size.Y / 2 + 4 and math.abs(p.Z) <= size.Z / 2 + 2
+end
+
+-- أوامر صاحب البيت (اللعبة نفسها تسمح فيها لصاحب البيت بس)
+R.Methods.kick = {
+	function(t) return R.fire(R.re("1Player1sHous1e"), "KickPlayer", t) end,
+	function(t) return R.fire(R.re("1Player1sHous1e"), "Kick", t) end,
+	function(t) return R.fire(S.remote("Property:Permissions"), "Kick", t) end,
+	function(t) return R.fire(R.re("1Player1sHous1e"), "KickPlayer", t.Name) end,
+}
+R.Methods.ban = {
+	function(t) return R.fire(R.re("1Player1sHous1e"), "BanPlayer", t) end,
+	function(t) return R.fire(S.remote("Property:Permissions"), "Ban", t) end,
+	function(t) return R.fire(R.re("1Player1sHous1e"), "Ban", t) end,
+}
+R.Methods.lock = {
+	function(on) return R.fire(R.re("1Player1sHous1e"), on and "LockHouse" or "UnlockHouse") end,
+	function(on) return R.fire(R.re("1Player1sHous1e"), "Lock", on) end,
+	function(on) return R.fire(S.remote("Property:Permissions"), "Lock", on) end,
+}
+R.Methods.size = {
+	function(d) return R.fire(S.remote("IncrementBodySize"), d) end,
+	function(d) return R.fire(S.remote("IncrementBodySize"), "Height", d) end,
+	function(d) return R.fire(S.remote("IncrementBodySize"), "BodyHeightScale", d) end,
+}
+
+-- نجرّب الطريقة المحفوظة ثم الباقي لين يتحقق الشرط
+function R.tryMethods(key, arg, verify, timeout)
+	local list = R.Methods[key]
+	local _, first = R.method(key)
+	local order = { first }
+	for i = 1, #list do
+		if i ~= first then
+			table.insert(order, i)
+		end
+	end
+	for _, index in ipairs(order) do
+		list[index](arg)
+		if S.waitFor(verify, timeout) then
+			if state.sigs[key] ~= index then
+				state.sigs[key] = index
+				scheduleSave()
+			end
+			return true
+		end
+	end
+	return false
+end
+
+function R.kick(target, ban)
+	local house = R.myHouse()
+	if not house then
+		notify("لازم يكون عندك بيت أول", THEME.Danger, "🏠")
+		return
+	end
+	if target == player then return end
+	local word = ban and "حظر" or "طرد"
+	task.spawn(function()
+		if not R.inside(house, target) then
+			R.method(ban and "ban" or "kick")(target)
+			notify("تم إرسال " .. word .. " " .. target.DisplayName, THEME.Accent2, "🚪")
+			return
+		end
+		local done = R.tryMethods(ban and "ban" or "kick", target, function()
+			return not R.inside(house, target)
+		end, 2)
+		if done then
+			notify("تم " .. word .. " " .. target.DisplayName .. " من بيتك", THEME.Success, "🚪")
+		else
+			notify("ما طلع — جرّب \"طريقة ثانية\"", THEME.Warning, "🚪")
+		end
+	end)
+end
+
+function R.kickAll(silent)
+	local house = R.myHouse()
+	if not house then
+		if not silent then
+			notify("لازم يكون عندك بيت أول", THEME.Danger, "🏠")
+		end
+		return 0
+	end
+	local count = 0
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other ~= player and R.inside(house, other) then
+			count += 1
+			R.kick(other)
+		end
+	end
+	if not silent and count == 0 then
+		notify("ما في أحد داخل بيتك", THEME.SubText, "🏠")
+	end
+	return count
+end
+
+function R.setLock(on)
+	if not R.myHouse() then
+		notify("لازم يكون عندك بيت أول", THEME.Danger, "🏠")
+		return
+	end
+	R.method("lock")(on)
+	notify(on and "تم قفل البيت 🔒" or "تم فتح القفل 🔓", THEME.Success, "🏠")
+end
+
+-- الأبواب: نضغطها بنفس طريقة اللاعب (ClickDetector أو ProximityPrompt)
+function R.doors(house)
+	local list = {}
+	if not house then return list end
+	for _, obj in ipairs(house.Model:GetDescendants()) do
+		if obj:IsA("ClickDetector") or obj:IsA("ProximityPrompt") then
+			local parent = obj.Parent
+			local text = (parent and parent.Name or "") .. " " .. (parent and parent.Parent and parent.Parent.Name or "")
+			if obj:IsA("ProximityPrompt") then
+				text ..= " " .. obj.ActionText .. " " .. obj.ObjectText
+			end
+			text = text:lower()
+			if text:find("door") or text:find("gate") or text:find("garage") or text:find("open") then
+				table.insert(list, obj)
+			end
+		end
+	end
+	return list
+end
+
+function R.interact(obj)
+	if obj:IsA("ClickDetector") then
+		if typeof(fireclickdetector) == "function" then
+			return pcall(fireclickdetector, obj)
+		end
+		return false
+	end
+	if typeof(fireproximityprompt) == "function" then
+		return pcall(fireproximityprompt, obj)
+	end
+	return pcall(function()
+		obj:InputHoldBegin()
+		task.wait(obj.HoldDuration)
+		obj:InputHoldEnd()
+	end)
+end
+
+function R.toggleDoors(silent)
+	local doors = R.doors(R.myHouse())
+	if #doors == 0 then
+		if not silent then
+			notify("ما لقيت أبواب ببيتك", THEME.Danger, "🚪")
+		end
+		return 0
+	end
+	for _, door in ipairs(doors) do
+		task.spawn(R.interact, door)
+	end
+	if not silent then
+		notify(string.format("فتح/تسكير %d باب", #doors), THEME.Success, "🚪")
+	end
+	return #doors
+end
+
+-- أنوار البيت (عندك بس)
+R.lightsOn = true
+function R.toggleLights()
+	local house = R.myHouse()
+	if not house then
+		notify("لازم يكون عندك بيت أول", THEME.Danger, "🏠")
+		return
+	end
+	R.lightsOn = not R.lightsOn
+	for _, obj in ipairs(house.Model:GetDescendants()) do
+		if obj:IsA("Light") then
+			obj.Enabled = R.lightsOn
+		end
+	end
+	notify(R.lightsOn and "الأنوار شغّالة 💡" or "الأنوار مطفية 🌑", THEME.Accent2, "💡")
+end
+
+-- الأصدقاء (عشان الحارس ما يطردهم)
+R.friends, R.alerted, R.kickCooldown = {}, {}, {}
+local function checkFriend(other)
+	task.spawn(function()
+		local ok, result = pcall(player.IsFriendsWith, player, other.UserId)
+		R.friends[other] = ok and result or false
+	end)
+end
+for _, other in ipairs(Players:GetPlayers()) do
+	checkFriend(other)
+end
+connect(Players.PlayerAdded, checkFriend)
+connect(Players.PlayerRemoving, function(other)
+	R.friends[other], R.alerted[other], R.kickCooldown[other] = nil, nil, nil
+end)
+
+-- الباب التلقائي + حارس البيت + التنبيه
+R.lastDoor, R.lastGuard = 0, 0
+connect(RunService.Heartbeat, function()
+	local now = os.clock()
+	if state.autoDoor and now - R.lastDoor >= state.doorInterval then
+		R.lastDoor = now
+		task.spawn(R.toggleDoors, true)
+	end
+	if not (state.houseGuard or state.houseAlert) or now - R.lastGuard < 0.5 then return end
+	R.lastGuard = now
+	local house = R.myHouse()
+	if not house then return end
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other ~= player then
+			local inside = R.inside(house, other)
+			if inside and not R.alerted[other] then
+				R.alerted[other] = true
+				if state.houseAlert then
+					notify(other.DisplayName .. " دخل بيتك", THEME.Warning, "🚨")
+				end
+			elseif not inside then
+				R.alerted[other] = nil
+			end
+			if inside and state.houseGuard and not (state.guardFriends and R.friends[other])
+				and now - (R.kickCooldown[other] or 0) > 3 then
+				R.kickCooldown[other] = now
+				task.spawn(R.method("kick"), other)
+			end
+		end
+	end
+end)
+
+-- مميزات عامة جديدة: نزول بطيء، دوران، الرجوع لمكان الموت
+R.deathCFrame = nil
+connect(RunService.Heartbeat, function(dt)
+	if not (state.glide or state.spin) then return end
+	local _, humanoid, root = getCharacter()
+	if not root or not humanoid then return end
+	if state.glide and humanoid:GetState() == Enum.HumanoidStateType.Freefall then
+		local v = root.AssemblyLinearVelocity
+		if v.Y < -state.glideSpeed then
+			root.AssemblyLinearVelocity = Vector3.new(v.X, -state.glideSpeed, v.Z)
+		end
+	end
+	if state.spin and not state.fly and not humanoid.SeatPart then
+		root.CFrame *= CFrame.Angles(0, state.spinSpeed * dt, 0)
+	end
+end)
+
+local function watchDeath(character)
+	local humanoid = character:WaitForChild("Humanoid", 10)
+	if not humanoid then return end
+	humanoid.Died:Connect(function()
+		local root = character:FindFirstChild("HumanoidRootPart")
+		if root then
+			R.deathCFrame = root.CFrame
+		end
+	end)
+end
+if player.Character then
+	task.spawn(watchDeath, player.Character)
+end
+connect(player.CharacterAdded, function(character)
+	task.spawn(watchDeath, character)
+	if state.deathTp and R.deathCFrame then
+		local target = R.deathCFrame
+		character:WaitForChild("HumanoidRootPart", 10)
+		task.wait(0.4)
+		F.teleport(target)
+		notify("رجعتك لمكان موتك", THEME.Success, "💀")
+	end
+end)
+
+-- فلاتر الألوان (عندك بس)
+R.Filters = {
+	{ "عادي", nil },
+	{ "أبيض وأسود", { Saturation = -1, Contrast = 0.1 } },
+	{ "سينمائي", { Saturation = -0.2, Contrast = 0.25, TintColor = Color3.fromRGB(255, 235, 210) } },
+	{ "ألوان قوية", { Saturation = 0.6, Contrast = 0.15 } },
+	{ "دافئ", { TintColor = Color3.fromRGB(255, 210, 170), Saturation = 0.15 } },
+	{ "بارد", { TintColor = Color3.fromRGB(180, 210, 255), Saturation = 0.05 } },
+	{ "رؤية ليلية", { TintColor = Color3.fromRGB(120, 255, 120), Brightness = 0.25, Saturation = -0.6 } },
+	{ "حلم", { TintColor = Color3.fromRGB(255, 190, 240), Brightness = 0.08, Contrast = -0.1 } },
+}
+function R.applyFilter(index)
+	local old = Lighting:FindFirstChild("MohammedTN_Filter")
+	if old then
+		old:Destroy()
+	end
+	local preset = R.Filters[index]
+	if not preset or not preset[2] then return end
+	local effect = Instance.new("ColorCorrectionEffect")
+	effect.Name = "MohammedTN_Filter"
+	for prop, value in pairs(preset[2]) do
+		effect[prop] = value
+	end
+	effect.Parent = Lighting
+end
+
 -----------------------------------------------------------
 -- صفحة 1: الرئيسية
 -----------------------------------------------------------
@@ -3015,6 +3331,12 @@ end)
 slider("قوة الجاذبية", "gravity", 5, 400, 5, "%d", function()
 	M.applyGravity()
 end)
+
+section("🪂 حركات إضافية")
+toggle("نزول بطيء (مظلّة)", "تنزل على راحتك لما تطيح من مكان عالي", "glide")
+slider("سرعة النزول", "glideSpeed", 2, 40, 1, "%d")
+toggle("دوران", "شخصيتك تلف حول نفسها", "spin")
+slider("سرعة الدوران", "spinSpeed", 1, 20, 1, "%d")
 
 -----------------------------------------------------------
 -- صفحة 3: السيارات
@@ -3620,6 +3942,27 @@ outfitList.Parent = currentPage.Frame
 refreshOutfits()
 
 section("🔄 أدوات")
+section("📏 طول الجسم")
+do
+	local grid = buttonGrid(3, 34, 3, "طول الجسم حجم كبير صغير")
+	local buttons = {
+		{ "➖ أقصر", -1 },
+		{ "➕ أطول", 1 },
+		{ "🔁 طريقة ثانية", 0 },
+	}
+	for i, info in ipairs(buttons) do
+		local btn = smallButton(grid, info[1], UDim2.new(), UDim2.new(), i < 3)
+		btn.LayoutOrder = i
+		btn.MouseButton1Click:Connect(function()
+			if info[2] == 0 then
+				R.nextMethod("size")
+			else
+				R.method("size")(info[2])
+			end
+		end)
+	end
+end
+
 action("شيل كل اللبس", "يشيل كل القطع اللي لابسها", "شيل", function()
 	S.removeAll()
 	notify("شلت كل اللبس", THEME.Accent2, "👕")
@@ -3680,6 +4023,19 @@ slider("حد الـ FPS", "fpsCap", 60, 360, 10, "%d", function()
 	end
 end)
 
+section("🎨 فلاتر الألوان (عندك بس)")
+do
+	local grid = buttonGrid(4, 34, #R.Filters, "فلاتر ألوان أبيض أسود سينمائي رؤية ليلية")
+	for i, preset in ipairs(R.Filters) do
+		local btn = smallButton(grid, preset[1], UDim2.new(), UDim2.new(), i == 1)
+		btn.LayoutOrder = i
+		btn.MouseButton1Click:Connect(function()
+			R.applyFilter(i)
+			notify("فلتر: " .. preset[1], THEME.Accent2, "🎨")
+		end)
+	end
+end
+
 section("🧱 أدوات العالم")
 toggle("رؤية من خلال الجدران", "الجدران تصير شفافة (عندك بس)", "xray", function()
 	M.applyXray()
@@ -3702,6 +4058,7 @@ toggle("ضد الرمي (Anti-Fling)", "ما أحد يقدر يطيّرك أو �
 toggle("ضد السقوط", "يرجعك إذا طحت من الماب", "antiVoid")
 toggle("ضد الجلوس", "ما أحد يجلسك أو يمسكك (يمنعك تركب سيارة)", "antiSit")
 toggle("ضد الطرد (Anti-AFK)", "ما ينطردك بسبب عدم الحركة", "antiAfk")
+toggle("رجوع لمكان الموت", "لما تموت ترجع لنفس المكان", "deathTp")
 
 action("رجوع لآخر مكان آمن", "إذا علقت أو طرت", "رجوع", function()
 	if F.lastSafe then
@@ -3813,6 +4170,113 @@ do
 		R.teleportToHouse(R.myHouse())
 	end)
 end
+
+action("انتقال لداخل البيت", "توديك لنص بيتك", "دخول", function()
+	R.teleportInside(R.myHouse())
+end)
+
+section("🔐 التحكم بالبيت")
+action("قفل البيت", "ما أحد يقدر يدخل", "🔒 قفل", function()
+	R.setLock(true)
+end)
+action("فتح القفل", "الكل يقدر يدخل", "🔓 فتح", function()
+	R.setLock(false)
+end)
+action("🔁 طريقة ثانية للقفل", "إذا القفل ما اشتغل", "تبديل", function()
+	R.nextMethod("lock")
+end)
+action("الأبواب", "تفتح وتسكّر كل أبواب بيتك", "🚪 فتح/سكّر", function()
+	R.toggleDoors(false)
+end)
+toggle("باب تلقائي", "الأبواب تفتح وتسكّر لحالها", "autoDoor")
+slider("الفاصل بين كل فتحة (ثانية)", "doorInterval", 0.4, 5, 0.1, "%.1f")
+action("الأنوار", "تشغيل/إطفاء أنوار بيتك (عندك بس)", "💡 تبديل", R.toggleLights)
+
+section("🚨 حماية البيت")
+toggle("تنبيه الدخول", "يعلمك لما أحد يدخل بيتك", "houseAlert")
+toggle("حارس البيت", "يطرد تلقائياً أي أحد يدخل بيتك", "houseGuard")
+toggle("استثناء الأصدقاء", "الحارس ما يطرد أصدقاءك", "guardFriends")
+action("اطرد الكل", "يطرد كل اللي داخل بيتك الحين", "🚪 طرد", function()
+	R.kickAll(false)
+end)
+action("🔁 طريقة ثانية للطرد", "إذا الطرد ما اشتغل", "تبديل", function()
+	R.nextMethod("kick")
+	R.nextMethod("ban")
+end)
+
+section("👥 طرد أو حظر لاعب")
+local kickList = create("Frame", {
+	Size = UDim2.new(1, 0, 0, 0),
+	AutomaticSize = Enum.AutomaticSize.Y,
+	BackgroundTransparency = 1,
+	LayoutOrder = nextOrder(),
+	Parent = currentPage.Frame,
+}, {
+	create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
+})
+
+local function refreshKickList()
+	for _, child in ipairs(kickList:GetChildren()) do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+	local house = R.myHouse()
+	local order = 0
+	for _, other in ipairs(Players:GetPlayers()) do
+		if other ~= player then
+			order += 1
+			local inside = house and R.inside(house, other)
+			local row = create("Frame", {
+				Size = UDim2.new(1, 0, 0, 44),
+				BackgroundColor3 = THEME.Surface,
+				LayoutOrder = inside and order or order + 1000,
+				Parent = kickList,
+			}, { corner(10), stroke(inside and THEME.Warning or THEME.Stroke, 1, inside and 0.2 or 0.5) })
+			label(row, {
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -14, 0.5, 0),
+				Size = UDim2.new(1, -200, 1, 0),
+				Text = (inside and "🚨 " or "") .. other.DisplayName,
+				TextSize = 13,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				TextXAlignment = Enum.TextXAlignment.Right,
+			})
+			local kickBtn = smallButton(row, "طرد", UDim2.new(0, 10, 0.5, -13), UDim2.new(0, 84, 0, 26), true)
+			kickBtn.MouseButton1Click:Connect(function()
+				R.kick(other, false)
+			end)
+			local banBtn = smallButton(row, "حظر", UDim2.new(0, 100, 0.5, -13), UDim2.new(0, 84, 0, 26), false)
+			banBtn.MouseButton1Click:Connect(function()
+				R.kick(other, true)
+			end)
+		end
+	end
+	if order == 0 then
+		local empty = create("Frame", {
+			Size = UDim2.new(1, 0, 0, 40),
+			BackgroundColor3 = THEME.Surface,
+			Parent = kickList,
+		}, { corner(10) })
+		label(empty, {
+			Size = UDim2.new(1, 0, 1, 0),
+			Text = "ما في لاعبين ثانيين بالسيرفر",
+			TextColor3 = THEME.SubText,
+			TextSize = 12,
+			Font = FONT_REG,
+		})
+	end
+end
+
+action("تحديث اللاعبين", "اللي داخل بيتك يطلعون أول 🚨", "تحديث", refreshKickList)
+task.defer(refreshKickList)
+connect(Players.PlayerAdded, function()
+	task.wait(1)
+	refreshKickList()
+end)
+connect(Players.PlayerRemoving, function()
+	task.defer(refreshKickList)
+end)
 
 section("🎨 لون البيت")
 colorSwatches("لون البيت", "houseColor", function(color)
@@ -4328,6 +4792,10 @@ local function cleanup()
 	end
 	if camConnection then
 		camConnection:Disconnect()
+	end
+	R.applyFilter(1)
+	if not R.lightsOn then
+		pcall(R.toggleLights)
 	end
 	-- مميزات إضافية
 	if M.freecam then
