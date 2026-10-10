@@ -26,9 +26,9 @@ end
 -- 1) دعم الـ Executor
 local features = {}
 for _, name in ipairs({ "fireclickdetector", "fireproximityprompt", "firetouchinterest", "decompile", "getgc", "getsenv", "getscriptclosure", "firesignal", "getconnections" }) do
-	table.insert(features, (supports(name) and "✓ " or "✗ ") .. name)
+	table.insert(features, (supports(name) and "✓ يدعم " or "✗ ما يدعم ") .. name)
 end
-add("== Executor ==")
+add("== شو يدعم برنامج التشغيل ==")
 add(table.concat(features, "  "))
 add("")
 
@@ -79,7 +79,7 @@ for root in pairs(houseRoots) do
 			count += 1
 			if count > 30 then break end
 			local extra = obj:IsA("ProximityPrompt") and ("  '" .. obj.ActionText .. "'") or ""
-			add(obj.ClassName .. ": " .. short(obj) .. extra)
+			add((obj:IsA("ClickDetector") and "زر ضغط" or obj:IsA("ProximityPrompt") and "زر قرب" or "سكربت/أمر") .. ": " .. short(obj) .. extra)
 		end
 	end
 	if count == 0 then
@@ -105,7 +105,7 @@ for _, obj in ipairs(playerGui:GetDescendants()) do
 		for _, keyword in ipairs(keywords) do
 			if text:find(keyword, 1, true) then
 				guiCount += 1
-				add(obj.ClassName .. ": " .. short(obj))
+				add((obj:IsA("LocalScript") and "سكربت" or "زر") .. ": " .. short(obj))
 				break
 			end
 		end
@@ -117,7 +117,7 @@ end
 add("")
 
 -- 5) كل ريموتات RE
-add("== ReplicatedStorage.RE ==")
+add("== أوامر اللعبة (RE) ==")
 local re = ReplicatedStorage:FindFirstChild("RE")
 if re then
 	local names = {}
